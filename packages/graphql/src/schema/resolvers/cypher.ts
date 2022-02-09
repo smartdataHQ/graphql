@@ -167,15 +167,22 @@ export default function cypherResolver({
         const apocParamsStr = `{${apocParams.strs.length ? `${apocParams.strs.join(", ")}` : ""}}`;
 
         const expectMultipleValues = !field.isScalar && !field.isEnum && isArray ? "true" : "false";
+
+        let altered_statement = statement
+        if (altered_statement.indexOf('$$') > -1) {
+            for (let key in params) {
+                altered_statement = altered_statement.split(`$$${key}`).join(args[key])
+            }
+        }
         if (type === "Query") {
             cypherStrs.push(`
-                WITH apoc.cypher.runFirstColumn("${statement}", ${apocParamsStr}, ${expectMultipleValues}) as x
+                WITH apoc.cypher.runFirstColumn("${altered_statement}", ${apocParamsStr}, ${expectMultipleValues}) as x
                 UNWIND x as this
                 WITH this
             `);
         } else {
             cypherStrs.push(`
-                CALL apoc.cypher.doIt("${statement}", ${apocParamsStr}) YIELD value
+                CALL apoc.cypher.doIt("${altered_statement}", ${apocParamsStr}) YIELD value
                 WITH apoc.map.values(value, [keys(value)[0]])[0] AS this
             `);
         }

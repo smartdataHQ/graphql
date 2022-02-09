@@ -298,13 +298,14 @@ function createProjectionAndParams({
             const apocParamsStr = `{this: ${chainStr || varName}${
                 apocParams.strs.length ? `, ${apocParams.strs.join(", ")}` : ""
             }}`;
-            const apocStr = `${
+            let apocStr = `${
                 !cypherField.isScalar && !cypherField.isEnum ? `${param} IN` : ""
             } apoc.cypher.runFirstColumn("${cypherField.statement}", ${apocParamsStr}, ${expectMultipleValues})${
                 apocWhere ? ` ${apocWhere}` : ""
             }${unionWhere ? ` ${unionWhere} ` : ""}${
                 projectionStr ? ` | ${!referenceUnion ? param : ""} ${projectionStr}` : ""
             }`;
+            if (param) apocStr = apocStr.split(`$$`).join(`##${param}_`)
 
             if (cypherField.isScalar || cypherField.isEnum) {
                 res.projection.push(`${alias}: ${apocStr}`);

@@ -84,12 +84,18 @@ async function execute(input: {
         input.params.auth = createAuthParam({ context: input.context });
     }
 
-    const cypher =
+    let cypher =
         input.context.queryOptions && Object.keys(input.context.queryOptions).length
             ? `CYPHER ${Object.entries(input.context.queryOptions)
                   .map(([key, value]) => `${key}=${value}`)
                   .join(" ")}\n${input.cypher}`
             : input.cypher;
+
+    if (cypher.indexOf('##') > -1) {
+        for (var key in input.params) {
+            cypher = cypher.split(`##${key}`).join(input.params[key])
+        }
+    }
 
     try {
         debug("%s", `About to execute Cypher:\nCypher:\n${cypher}\nParams:\n${JSON.stringify(input.params, null, 2)}`);
