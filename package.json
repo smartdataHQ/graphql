@@ -3,7 +3,7 @@
     "author": "Neo4j Inc.",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/neo4j/graphql.git"
+        "url": "git+https://github.com/smartdataHQ/graphql.git"
     },
     "private": true,
     "workspaces": [
