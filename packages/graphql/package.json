@@ -1,15 +1,12 @@
 {
     "name": "@smartdatahq/graphql",
-    "version": "1.0.2",
+    "version": "1.0.0",
     "description": "A GraphQL to Cypher query execution layer for Neo4j and JavaScript GraphQL implementations",
     "keywords": [
         "neo4j",
         "graphql",
         "server"
     ],
-    "publishConfig": {
-        "registry": "https://npm.pkg.github.com/"
-    },
     "license": "Apache-2.0",
     "repository": "git://github.com/smartdatahq/graphql.git",
     "bugs": {
