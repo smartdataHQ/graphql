@@ -1,6 +1,6 @@
 {
     "name": "@smartdatahq/graphql",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "A GraphQL to Cypher query execution layer for Neo4j and JavaScript GraphQL implementations",
     "keywords": [
         "neo4j",
@@ -11,14 +11,11 @@
         "registry": "https://npm.pkg.github.com/"
     },
     "license": "Apache-2.0",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/smartdataHQ/graphql.git"
-    },
+    "repository": "git://github.com/smartdatahq/graphql.git",
     "bugs": {
-        "url": "https://github.com/smartdataHQ/graphql/issues"
+        "url": "https://github.com/smartdatahq/graphql/issues"
     },
-    "homepage": "https://github.com/smartdataHQ/graphql/tree/master/packages/graphql",
+    "homepage": "https://github.com/smartdatahq/graphql/tree/master/packages/graphql",
     "exports": "./dist/index.js",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
