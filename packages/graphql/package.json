@@ -1,6 +1,6 @@
 {
     "name": "@smartdatahq/graphql",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "A GraphQL to Cypher query execution layer for Neo4j and JavaScript GraphQL implementations",
     "keywords": [
         "neo4j",
