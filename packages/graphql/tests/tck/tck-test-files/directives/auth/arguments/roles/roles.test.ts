@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 
+import { Neo4jGraphQLAuthJWTPlugin } from "@neo4j/graphql-plugin-auth";
 import { gql } from "apollo-server";
 import { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../../../src";
@@ -72,7 +73,12 @@ describe("Cypher Auth Roles", () => {
 
         neoSchema = new Neo4jGraphQL({
             typeDefs,
-            config: { enableRegex: true, jwt: { secret } },
+            config: { enableRegex: true },
+            plugins: {
+                auth: new Neo4jGraphQLAuthJWTPlugin({
+                    secret,
+                }),
+            },
         });
     });
 
@@ -223,8 +229,8 @@ describe("Cypher Auth Roles", () => {
             CALL apoc.util.validate(NOT(ANY(r IN [\\"admin\\"] WHERE ANY(rr IN $auth.roles WHERE r = rr))), \\"@neo4j/graphql/FORBIDDEN\\", [0])
             RETURN this0
             }
-            RETURN
-            this0 { .id } AS this0"
+            RETURN [
+            this0 { .id }] AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -273,8 +279,8 @@ describe("Cypher Auth Roles", () => {
             CALL apoc.util.validate(NOT(ANY(r IN [\\"super-admin\\"] WHERE ANY(rr IN $auth.roles WHERE r = rr))), \\"@neo4j/graphql/FORBIDDEN\\", [0])
             RETURN this0
             }
-            RETURN
-            this0 { .id } AS this0"
+            RETURN [
+            this0 { .id }] AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -319,7 +325,7 @@ describe("Cypher Auth Roles", () => {
             WITH this
             CALL apoc.util.validate(NOT(ANY(r IN [\\"admin\\"] WHERE ANY(rr IN $auth.roles WHERE r = rr))), \\"@neo4j/graphql/FORBIDDEN\\", [0])
             SET this.id = $this_update_id
-            RETURN this { .id } AS this"
+            RETURN collect(this { .id }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -364,7 +370,7 @@ describe("Cypher Auth Roles", () => {
             WITH this
             CALL apoc.util.validate(NOT(ANY(r IN [\\"admin\\"] WHERE ANY(rr IN $auth.roles WHERE r = rr)) AND ANY(r IN [\\"super-admin\\"] WHERE ANY(rr IN $auth.roles WHERE r = rr))), \\"@neo4j/graphql/FORBIDDEN\\", [0])
             SET this.password = $this_update_password
-            RETURN this { .id } AS this"
+            RETURN collect(this { .id }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -418,7 +424,7 @@ describe("Cypher Auth Roles", () => {
             	)
             	RETURN count(*)
             }
-            RETURN this { .id } AS this"
+            RETURN collect(this { .id }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -478,10 +484,26 @@ describe("Cypher Auth Roles", () => {
             	)
             	RETURN count(*)
             }
+            WITH this, this_post0
+            CALL {
+            	WITH this_post0
+            	MATCH (this_post0)-[this_post0_creator_User_unique:HAS_POST]->(:User)
+            	WITH count(this_post0_creator_User_unique) as c
+            	CALL apoc.util.validate(NOT(c = 1), '@neo4j/graphql/RELATIONSHIP-REQUIREDPost.creator required', [0])
+            	RETURN c AS this_post0_creator_User_unique_ignored
+            }
             RETURN count(*)
             \\", \\"\\", {this:this, updateComments: $updateComments, this_post0:this_post0, auth:$auth,this_post0_creator0_connect0_node_id:$this_post0_creator0_connect0_node_id})
             YIELD value as _
-            RETURN this { .content } AS this"
+            WITH this
+            CALL {
+            	WITH this
+            	MATCH (this)<-[this_post_Post_unique:HAS_COMMENT]-(:Post)
+            	WITH count(this_post_Post_unique) as c
+            	CALL apoc.util.validate(NOT(c = 1), '@neo4j/graphql/RELATIONSHIP-REQUIREDComment.post required', [0])
+            	RETURN c AS this_post_Post_unique_ignored
+            }
+            RETURN collect(this { .content }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -553,7 +575,7 @@ describe("Cypher Auth Roles", () => {
             )
             RETURN count(*)
             }
-            RETURN this { .id } AS this"
+            RETURN collect(this { .id }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -620,10 +642,26 @@ describe("Cypher Auth Roles", () => {
             )
             RETURN count(*)
             }
+            WITH this, this_post0
+            CALL {
+            	WITH this_post0
+            	MATCH (this_post0)-[this_post0_creator_User_unique:HAS_POST]->(:User)
+            	WITH count(this_post0_creator_User_unique) as c
+            	CALL apoc.util.validate(NOT(c = 1), '@neo4j/graphql/RELATIONSHIP-REQUIREDPost.creator required', [0])
+            	RETURN c AS this_post0_creator_User_unique_ignored
+            }
             RETURN count(*)
             \\", \\"\\", {this:this, updateComments: $updateComments, this_post0:this_post0, auth:$auth})
             YIELD value as _
-            RETURN this { .content } AS this"
+            WITH this
+            CALL {
+            	WITH this
+            	MATCH (this)<-[this_post_Post_unique:HAS_COMMENT]-(:Post)
+            	WITH count(this_post_Post_unique) as c
+            	CALL apoc.util.validate(NOT(c = 1), '@neo4j/graphql/RELATIONSHIP-REQUIREDComment.post required', [0])
+            	RETURN c AS this_post_Post_unique_ignored
+            }
+            RETURN collect(this { .content }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`

@@ -24,7 +24,6 @@ import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
 
 describe("Cypher -> Connections -> Relationship Properties -> Update", () => {
-    const secret = "secret";
     let typeDefs: DocumentNode;
     let neoSchema: Neo4jGraphQL;
 
@@ -47,7 +46,7 @@ describe("Cypher -> Connections -> Relationship Properties -> Update", () => {
 
         neoSchema = new Neo4jGraphQL({
             typeDefs,
-            config: { enableRegex: true, jwt: { secret } },
+            config: { enableRegex: true },
         });
     });
 
@@ -83,7 +82,7 @@ describe("Cypher -> Connections -> Relationship Properties -> Update", () => {
             RETURN count(*)
             \\", \\"\\", {this_acted_in0_relationship:this_acted_in0_relationship, updateMovies: $updateMovies})
             YIELD value as this_acted_in0_relationship_actors0_edge
-            RETURN this { .title } AS this"
+            RETURN collect(this { .title }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -158,7 +157,7 @@ describe("Cypher -> Connections -> Relationship Properties -> Update", () => {
             RETURN count(*)
             \\", \\"\\", {this_acted_in0_relationship:this_acted_in0_relationship, updateMovies: $updateMovies})
             YIELD value as this_acted_in0_relationship_actors0_edge
-            RETURN this { .title } AS this"
+            RETURN collect(this { .title }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
@@ -166,11 +165,8 @@ describe("Cypher -> Connections -> Relationship Properties -> Update", () => {
                 \\"this_title\\": \\"Forrest Gump\\",
                 \\"this_update_actors0_name\\": \\"Tom Hanks\\",
                 \\"auth\\": {
-                    \\"isAuthenticated\\": true,
-                    \\"roles\\": [],
-                    \\"jwt\\": {
-                        \\"roles\\": []
-                    }
+                    \\"isAuthenticated\\": false,
+                    \\"roles\\": []
                 },
                 \\"updateMovies\\": {
                     \\"args\\": {
