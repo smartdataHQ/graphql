@@ -241,7 +241,7 @@ describe("generate", () => {
                 where?: UserWhere;
 
                 context?: any;
-                rootValue: any;
+                rootValue?: any;
               }): Promise<{ nodesDeleted: number; relationshipsDeleted: number }>;
               public aggregate(args: {
                 where?: UserWhere;
@@ -483,7 +483,7 @@ describe("generate", () => {
                 where?: UserWhere;
 
                 context?: any;
-                rootValue: any;
+                rootValue?: any;
               }): Promise<{ nodesDeleted: number; relationshipsDeleted: number }>;
               public aggregate(args: {
                 where?: UserWhere;
@@ -723,7 +723,7 @@ describe("generate", () => {
                 where?: UserWhere;
 
                 context?: any;
-                rootValue: any;
+                rootValue?: any;
               }): Promise<{ nodesDeleted: number; relationshipsDeleted: number }>;
               public aggregate(args: {
                 where?: UserWhere;
@@ -1212,8 +1212,20 @@ describe("generate", () => {
               actors?: InputMaybe<PersonWhere>;
               actors_NOT?: InputMaybe<PersonWhere>;
               actorsAggregate?: InputMaybe<MovieActorsAggregateInput>;
+              /** Return Movies where all of the related People match this filter */
+              actors_ALL?: InputMaybe<PersonWhere>;
+              /** Return Movies where none of the related People match this filter */
+              actors_NONE?: InputMaybe<PersonWhere>;
+              /** Return Movies where one of the related People match this filter */
+              actors_SINGLE?: InputMaybe<PersonWhere>;
+              /** Return Movies where some of the related People match this filter */
+              actors_SOME?: InputMaybe<PersonWhere>;
               actorsConnection?: InputMaybe<MovieActorsConnectionWhere>;
               actorsConnection_NOT?: InputMaybe<MovieActorsConnectionWhere>;
+              actorsConnection_ALL?: InputMaybe<MovieActorsConnectionWhere>;
+              actorsConnection_NONE?: InputMaybe<MovieActorsConnectionWhere>;
+              actorsConnection_SINGLE?: InputMaybe<MovieActorsConnectionWhere>;
+              actorsConnection_SOME?: InputMaybe<MovieActorsConnectionWhere>;
             };
 
             export type PersonConnectWhere = {
@@ -1297,7 +1309,7 @@ describe("generate", () => {
                 where?: MovieWhere;
                 delete?: MovieDeleteInput;
                 context?: any;
-                rootValue: any;
+                rootValue?: any;
               }): Promise<{ nodesDeleted: number; relationshipsDeleted: number }>;
               public aggregate(args: {
                 where?: MovieWhere;
@@ -1347,7 +1359,7 @@ describe("generate", () => {
                 where?: PersonWhere;
 
                 context?: any;
-                rootValue: any;
+                rootValue?: any;
               }): Promise<{ nodesDeleted: number; relationshipsDeleted: number }>;
               public aggregate(args: {
                 where?: PersonWhere;

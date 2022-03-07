@@ -23,7 +23,7 @@ import { gql } from "apollo-server";
 import { Neo4jGraphQL } from "../../../src";
 
 describe("@writeonly directive", () => {
-    test("makes a field writeonly", () => {
+    test("makes a field writeonly", async () => {
         const typeDefs = gql`
             type User {
                 username: String!
@@ -31,7 +31,7 @@ describe("@writeonly directive", () => {
             }
         `;
         const neoSchema = new Neo4jGraphQL({ typeDefs });
-        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(neoSchema.schema));
+        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(await neoSchema.getSchema()));
 
         expect(printedSchema).toMatchInlineSnapshot(`
             "schema {
@@ -156,7 +156,7 @@ describe("@writeonly directive", () => {
         `);
     });
 
-    test("makes an inherited field writeonly", () => {
+    test("makes an inherited field writeonly", async () => {
         const typeDefs = gql`
             interface UserInterface {
                 username: String!
@@ -169,7 +169,7 @@ describe("@writeonly directive", () => {
             }
         `;
         const neoSchema = new Neo4jGraphQL({ typeDefs });
-        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(neoSchema.schema));
+        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(await neoSchema.getSchema()));
 
         expect(printedSchema).toMatchInlineSnapshot(`
             "schema {
@@ -298,7 +298,7 @@ describe("@writeonly directive", () => {
         `);
     });
 
-    test("makes a relationship field writeonly", () => {
+    test("makes a relationship field writeonly", async () => {
         const typeDefs = gql`
             type Actor {
                 name: String
@@ -310,7 +310,7 @@ describe("@writeonly directive", () => {
             }
         `;
         const neoSchema = new Neo4jGraphQL({ typeDefs });
-        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(neoSchema.schema));
+        const printedSchema = printSchemaWithDirectives(lexicographicSortSchema(await neoSchema.getSchema()));
 
         expect(printedSchema).toMatchInlineSnapshot(`
             "schema {
@@ -528,11 +528,23 @@ describe("@writeonly directive", () => {
             input MovieWhere {
               AND: [MovieWhere!]
               OR: [MovieWhere!]
-              actors: ActorWhere
+              actors: ActorWhere @deprecated(reason: \\"Use \`actors_SOME\` instead.\\")
               actorsAggregate: MovieActorsAggregateInput
-              actorsConnection: MovieActorsConnectionWhere
-              actorsConnection_NOT: MovieActorsConnectionWhere
-              actors_NOT: ActorWhere
+              actorsConnection: MovieActorsConnectionWhere @deprecated(reason: \\"Use \`actorsConnection_SOME\` instead.\\")
+              actorsConnection_ALL: MovieActorsConnectionWhere
+              actorsConnection_NONE: MovieActorsConnectionWhere
+              actorsConnection_NOT: MovieActorsConnectionWhere @deprecated(reason: \\"Use \`actorsConnection_NONE\` instead.\\")
+              actorsConnection_SINGLE: MovieActorsConnectionWhere
+              actorsConnection_SOME: MovieActorsConnectionWhere
+              \\"\\"\\"Return Movies where all of the related Actors match this filter\\"\\"\\"
+              actors_ALL: ActorWhere
+              \\"\\"\\"Return Movies where none of the related Actors match this filter\\"\\"\\"
+              actors_NONE: ActorWhere
+              actors_NOT: ActorWhere @deprecated(reason: \\"Use \`actors_NONE\` instead.\\")
+              \\"\\"\\"Return Movies where one of the related Actors match this filter\\"\\"\\"
+              actors_SINGLE: ActorWhere
+              \\"\\"\\"Return Movies where some of the related Actors match this filter\\"\\"\\"
+              actors_SOME: ActorWhere
               id: ID
               id_CONTAINS: ID
               id_ENDS_WITH: ID
