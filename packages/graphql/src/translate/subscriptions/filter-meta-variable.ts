@@ -17,25 +17,8 @@
  * limitations under the License.
  */
 
-export type EventMeta =
-    | {
-          event: "create";
-          id: string;
-          oldProps: undefined;
-          newProps: Record<string, any>;
-          timestamp: number;
-      }
-    | {
-          event: "update";
-          id: string;
-          oldProps: Record<string, any>;
-          newProps: Record<string, any>;
-          timestamp: number;
-      }
-    | {
-          event: "delete";
-          id: string;
-          oldProps: Record<string, any>;
-          newProps: undefined;
-          timestamp: number;
-      };
+import { META_CYPHER_VARIABLE } from "../../constants";
+
+export function filterMetaVariable(withVars: string[]): string[] {
+    return withVars.filter((w) => w !== META_CYPHER_VARIABLE);
+}
