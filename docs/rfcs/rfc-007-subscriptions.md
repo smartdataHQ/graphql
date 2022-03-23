@@ -20,7 +20,6 @@ Our users would like to use [GraphQL Subscriptions](https://graphql.org/blog/sub
 - All events are sent (for example, if node created and then deleted, we get both events)
 - Database transactions must be successful - no optimisticness  
 - Garbage collection of old subscriptions
-- We return "full objects" including nested relationships (for example, a movie subscription must return type `Movie` with nested `actors`)
 - Auth (on read)
 
 ### Should have
@@ -29,6 +28,7 @@ Our users would like to use [GraphQL Subscriptions](https://graphql.org/blog/sub
   - CONNECT
   - DISCONNECT
 - Ability to filter which nodes are subscribed to (i.e. `where` clause) - full filtering feature set
+- We return "full objects" including nested relationships (for example, a movie subscription must return type `Movie` with nested `actors`)
 
 ### Could have
 
@@ -172,7 +172,7 @@ class Neo4jGraphQLSubscriptionsPlugin {
     this.events = new EventEmitter();
   }
 
-  abstract public publish(eventMeta: EventMeta);
+  abstract public publish(eventMeta: SubscriptionsEvent);
 }
 ```
 
@@ -180,7 +180,7 @@ The "local" implementation of this will look something like:
 
 ```ts
 class Neo4jGraphQLSubscriptionsLocalPlugin extends Neo4jGraphQLSubscriptionsPlugin {
-  public publish(eventMeta: EventMeta) {
+  public publish(eventMeta: SubscriptionsEvent) {
     this.events.emit(eventMeta);
   }
 }
@@ -192,7 +192,7 @@ And in rough pseudocode, an implementation of this using an AMQP broker would lo
 class Neo4jGraphQLSubscriptionsAMQPPlugin extends Neo4jGraphQLSubscriptionsPlugin {
   private amqpConnection;
 
-  public publish(eventMeta: EventMeta) {
+  public publish(eventMeta: SubscriptionsEvent) {
     amqpConnection.publish(eventMeta);
   }
 

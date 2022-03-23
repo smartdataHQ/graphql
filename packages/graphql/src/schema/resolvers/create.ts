@@ -23,6 +23,7 @@ import { translateCreate } from "../../translate";
 import { Node } from "../../classes";
 import { Context } from "../../types";
 import getNeo4jResolveTree from "../../utils/get-neo4j-resolve-tree";
+import { publishEventsToPlugin } from "./subscriptions/publish-events-to-plugin";
 
 export default function createResolver({ node }: { node: Node }) {
     async function resolve(_root: any, args: any, _context: unknown, info: GraphQLResolveInfo) {
@@ -41,6 +42,9 @@ export default function createResolver({ node }: { node: Node }) {
             (selection) => selection.kind === "Field" && selection.name.value === node.plural
         ) as FieldNode;
         const nodeKey = nodeProjection?.alias ? nodeProjection.alias.value : nodeProjection?.name?.value;
+
+        publishEventsToPlugin(executeResult, context.plugins?.subscriptions);
+
         return {
             info: {
                 bookmark: executeResult.bookmark,

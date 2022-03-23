@@ -23,7 +23,9 @@ import { ResolveTree } from "graphql-parse-resolve-info";
 import { Driver, Integer } from "neo4j-driver";
 import { Node, Relationship } from "./classes";
 import { RelationshipQueryDirectionOption } from "./constants";
-import { EventMeta } from "./subscriptions/event-meta";
+import { SubscriptionsEvent } from "./subscriptions/subscriptions-event";
+
+export { Node } from "./classes";
 
 export type DriverConfig = {
     database?: string;
@@ -47,6 +49,7 @@ export interface Context {
     queryOptions?: CypherQueryOptions;
     plugins?: Neo4jGraphQLPlugins;
     jwt?: JwtPayload;
+    subscriptionsEnabled: boolean;
     [k: string]: any;
 }
 
@@ -345,7 +348,7 @@ export interface Neo4jGraphQLAuthPlugin {
 export interface Neo4jGraphQLSubscriptionsPlugin {
     events: EventEmitter;
 
-    publish(eventMeta: EventMeta): Promise<void>;
+    publish(eventMeta: SubscriptionsEvent): Promise<void>;
 }
 
 export interface Neo4jGraphQLPlugins {
