@@ -1,18 +1,18 @@
-# name: "Pull Request Labeler"
+name: "Pull Request Labeler"
 
-# on:
-#   pull_request_target:
-#     branches:
-#       - dev
-#       - master
+on:
+  pull_request_target:
+    branches:
+      - dev
+      - master
 
-# jobs:
-#   label:
-#     if: "!startsWith(github.event.pull_request.head.ref, 'renovate/')"
+jobs:
+  label:
+    if: "!startsWith(github.event.pull_request.head.ref, 'renovate/')"
 
-#     runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - uses: srvaroa/labeler@master
-#         env:
-#           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    steps:
+      - uses: srvaroa/labeler@master
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
