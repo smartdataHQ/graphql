@@ -35,7 +35,7 @@ export {
     Node,
 } from "./types";
 export {
-    // Neo4jGraphQL,
+    Neo4jGraphQL,
     Neo4jGraphQLConstructor,
     Neo4jGraphQLAuthenticationError,
     Neo4jGraphQLForbiddenError,
