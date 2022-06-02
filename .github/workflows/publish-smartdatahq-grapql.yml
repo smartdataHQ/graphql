@@ -2,8 +2,10 @@
 name: Publish smartdataHQ graphql to GitHub Packages
 on:
   push:
-    paths:
-      - "packages/graphql/**"
+    # paths:
+    #   - "packages/graphql/**"
+    branches:
+      - "dev"
 jobs:
   publish_tag_package:
     runs-on: ubuntu-latest
