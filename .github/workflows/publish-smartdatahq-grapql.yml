@@ -1,5 +1,5 @@
 
-name: Publish QL Icons to GitHub Packages
+name: Publish smartdataHQ graphql to GitHub Packages
 on:
   push:
     paths:
