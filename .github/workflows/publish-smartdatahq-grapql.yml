@@ -34,7 +34,7 @@ jobs:
         git config --global user.name "${{ github.actor }}"
         echo "${{ steps.bump_version.outputs.tag }}"
 
-    - run: npm build
+    - run: npm run build
       working-directory: ./packages/graphql
 
     - run: npm version "${{ steps.bump_version.outputs.tag }}" && npm publish
