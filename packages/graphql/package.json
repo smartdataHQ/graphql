@@ -8,7 +8,6 @@
         "server"
     ],
     "license": "Apache-2.0",
-    "repository": "git://github.com/smartdatahq/graphql.git",
     "bugs": {
         "url": "https://github.com/smartdatahq/graphql/issues"
     },
