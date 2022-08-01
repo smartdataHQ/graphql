@@ -2587,24 +2587,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-<<<<<<< HEAD
-"@neo4j/graphql@npm:^3.0.2":
-  version: 3.0.2
-  resolution: "@neo4j/graphql@npm:3.0.2"
-  dependencies:
-=======
 "@neo4j/graphql@^3.5.0, @neo4j/graphql@^3.6.0, @neo4j/graphql@workspace:packages/graphql":
   version: 0.0.0-use.local
   resolution: "@neo4j/graphql@workspace:packages/graphql"
   dependencies:
     "@faker-js/faker": 7.3.0
->>>>>>> 25497c7bb0c42737870fbed9d18b973cd81ab89e
     "@graphql-tools/merge": ^8.2.1
     "@graphql-tools/resolvers-composition": ^6.4.1
     "@graphql-tools/schema": ^8.3.1
     "@graphql-tools/utils": ^8.6.0
-<<<<<<< HEAD
-=======
     "@neo4j/graphql-plugin-auth": ^1.0.0
     "@types/deep-equal": 1.0.1
     "@types/is-uuid": 1.0.0
@@ -2618,16 +2609,12 @@ __metadata:
     "@types/ws": 8.5.3
     apollo-server: 3.10.0
     apollo-server-express: 3.10.0
->>>>>>> 25497c7bb0c42737870fbed9d18b973cd81ab89e
     camelcase: ^6.2.0
     debug: ^4.3.2
+    dedent: 0.7.0
     deep-equal: ^2.0.5
     dot-prop: ^6.0.1
     graphql-compose: ^9.0.6
-<<<<<<< HEAD
-    graphql-parse-resolve-info: ^4.12.0
-    graphql-relay: ^0.10.0
-=======
     graphql-middleware: 6.1.32
     graphql-parse-resolve-info: ^4.12.0
     graphql-relay: ^0.10.0
@@ -2642,23 +2629,20 @@ __metadata:
     mock-jwks: 1.0.3
     nock: 13.2.9
     npm-run-all: 4.1.5
->>>>>>> 25497c7bb0c42737870fbed9d18b973cd81ab89e
     pluralize: ^8.0.0
+    randomstring: 1.2.2
+    rimraf: 3.0.2
     semver: ^7.3.5
-<<<<<<< HEAD
-=======
     supertest: 6.2.4
     ts-jest: 28.0.7
     ts-node: 10.9.1
     typescript: 4.7.4
     ws: 8.8.1
->>>>>>> 25497c7bb0c42737870fbed9d18b973cd81ab89e
   peerDependencies:
     graphql: ^16.0.0
     neo4j-driver: ^4.1.0
-  checksum: e93e3367bef8404421bf636a115188e187726b5f6853a34501866a1f036666f18eae4ffedabb3c89fd380f520972609364cea7f4cb59d9dcfdbcef74ad469f0c
-  languageName: node
-  linkType: hard
+  languageName: unknown
+  linkType: soft
 
 "@neo4j/introspector@^1.0.1, @neo4j/introspector@workspace:packages/introspector":
   version: 0.0.0-use.local
@@ -2929,57 +2913,6 @@ __metadata:
   checksum: 7d3aef54e17c1073101cb64d953157c19d62a40e261a30923fa1ee337b049c5f29cc47b1f0c477880f42b5659848ba9ab897607ac8ea4acd5c30ddcfac57fca6
   languageName: node
   linkType: hard
-
-"@smartdatahq/graphql@workspace:packages/graphql":
-  version: 0.0.0-use.local
-  resolution: "@smartdatahq/graphql@workspace:packages/graphql"
-  dependencies:
-    "@faker-js/faker": 6.0.0
-    "@graphql-tools/merge": ^8.2.1
-    "@graphql-tools/resolvers-composition": ^6.4.1
-    "@graphql-tools/schema": ^8.3.1
-    "@graphql-tools/utils": ^8.6.0
-    "@neo4j/graphql-plugin-auth": ^1.0.0
-    "@types/deep-equal": 1.0.1
-    "@types/is-uuid": 1.0.0
-    "@types/jest": 27.4.1
-    "@types/jsonwebtoken": 8.5.8
-    "@types/node": 16.11.26
-    "@types/pluralize": 0.0.29
-    "@types/randomstring": 1.1.8
-    apollo-server: 3.6.5
-    camelcase: ^6.2.0
-    debug: ^4.3.2
-    dedent: 0.7.0
-    deep-equal: ^2.0.5
-    dot-prop: ^6.0.1
-    graphql-compose: ^9.0.6
-    graphql-middleware: 6.1.18
-    graphql-parse-resolve-info: ^4.12.0
-    graphql-relay: ^0.10.0
-    graphql-tag: 2.12.6
-    is-uuid: 1.0.2
-    jest: 27.5.1
-    koa: 2.13.4
-    koa-jwt: 4.0.3
-    koa-router: 10.1.1
-    libnpmsearch: 5.0.2
-    mock-jwks: 1.0.3
-    nock: 13.2.4
-    npm-run-all: 4.1.5
-    pluralize: ^8.0.0
-    randomstring: 1.2.2
-    rimraf: 3.0.2
-    semver: ^7.3.5
-    supertest: 6.2.2
-    ts-jest: 27.1.3
-    ts-node: 10.7.0
-    typescript: 4.6.2
-  peerDependencies:
-    graphql: ^16.0.0
-    neo4j-driver: ^4.1.0
-  languageName: unknown
-  linkType: soft
 
 "@szmarczak/http-timer@npm:^1.1.2":
   version: 1.1.2
