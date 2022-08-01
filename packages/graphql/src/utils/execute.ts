@@ -17,24 +17,10 @@
  * limitations under the License.
  */
 
-import type { SessionMode, QueryResult, Session, Transaction } from "neo4j-driver";
-import { Neo4jError } from "neo4j-driver";
+import type { SessionMode, QueryResult } from "neo4j-driver";
 import Debug from "debug";
-import {
-    Neo4jGraphQLForbiddenError,
-    Neo4jGraphQLAuthenticationError,
-    Neo4jGraphQLConstraintValidationError,
-    Neo4jGraphQLRelationshipValidationError,
-} from "../classes";
-import {
-    AUTH_FORBIDDEN_ERROR,
-    AUTH_UNAUTHENTICATED_ERROR,
-    DEBUG_EXECUTE,
-    RELATIONSHIP_REQUIREMENT_PREFIX,
-} from "../constants";
-import createAuthParam from "../translate/create-auth-param";
-import type { Context, DriverConfig } from "../types";
-import environment from "../environment";
+import { DEBUG_EXECUTE } from "../constants";
+import type { Context } from "../types";
 
 const debug = Debug(DEBUG_EXECUTE);
 
@@ -64,7 +50,7 @@ async function execute({
             : cypher;
 
     if (modifiedCypher.indexOf("##") > -1) {
-        for (var key in params) {
+        for (let key in params) {
             modifiedCypher = modifiedCypher.split(`##${key}`).join(params[key]);
         }
     }
