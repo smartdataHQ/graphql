@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../src";
 import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
@@ -79,7 +79,7 @@ describe("Interface Relationships - Update delete", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             OPTIONAL MATCH (this)-[this_delete_actedIn_Movie0_relationship:ACTED_IN]->(this_delete_actedIn_Movie0:Movie)
             WHERE this_delete_actedIn_Movie0.title STARTS WITH $updateActors.args.delete.actedIn[0].where.node.title_STARTS_WITH
@@ -109,7 +109,8 @@ describe("Interface Relationships - Update delete", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -138,7 +139,7 @@ describe("Interface Relationships - Update delete", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             OPTIONAL MATCH (this)-[this_delete_actedIn_Movie0_relationship:ACTED_IN]->(this_delete_actedIn_Movie0:Movie)
             WHERE this_delete_actedIn_Movie0.title STARTS WITH $updateActors.args.delete.actedIn[0].where.node.title_STARTS_WITH
@@ -189,7 +190,8 @@ describe("Interface Relationships - Update delete", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -218,7 +220,7 @@ describe("Interface Relationships - Update delete", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             OPTIONAL MATCH (this)-[this_delete_actedIn_Movie0_relationship:ACTED_IN]->(this_delete_actedIn_Movie0:Movie)
             WHERE this_delete_actedIn_Movie0.title STARTS WITH $updateActors.args.delete.actedIn[0].where.node.title_STARTS_WITH
@@ -270,7 +272,8 @@ describe("Interface Relationships - Update delete", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -302,7 +305,7 @@ describe("Interface Relationships - Update delete", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             OPTIONAL MATCH (this)-[this_delete_actedIn_Movie0_relationship:ACTED_IN]->(this_delete_actedIn_Movie0:Movie)
             WHERE this_delete_actedIn_Movie0.title STARTS WITH $updateActors.args.delete.actedIn[0].where.node.title_STARTS_WITH
@@ -368,7 +371,8 @@ describe("Interface Relationships - Update delete", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

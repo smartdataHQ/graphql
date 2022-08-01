@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../src";
 import { createJwtRequest } from "../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../utils/tck-test-utils";
@@ -77,7 +77,8 @@ describe("#288", () => {
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
                 \\"this0_USERID\\": \\"userid\\",
-                \\"this0_COMPANYID\\": \\"companyid\\"
+                \\"this0_COMPANYID\\": \\"companyid\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -100,16 +101,17 @@ describe("#288", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:USER)
-            WHERE this.USERID = $this_USERID
+            "MATCH (this:\`USER\`)
+            WHERE this.USERID = $param0
             SET this.COMPANYID = $this_update_COMPANYID
             RETURN collect(DISTINCT this { .USERID, .COMPANYID }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_USERID\\": \\"userid\\",
-                \\"this_update_COMPANYID\\": \\"companyid2\\"
+                \\"param0\\": \\"userid\\",
+                \\"this_update_COMPANYID\\": \\"companyid2\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

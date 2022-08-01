@@ -17,7 +17,14 @@
  * limitations under the License.
  */
 
-import { CustomEnumField, CustomScalarField, PointField, PrimitiveField, TemporalField } from "../types";
+import type {
+    CustomEnumField,
+    CustomScalarField,
+    Neo4jFeaturesSettings,
+    PointField,
+    PrimitiveField,
+    TemporalField,
+} from "../types";
 
 interface Fields {
     scalarFields: CustomScalarField[];
@@ -32,11 +39,13 @@ function getWhereFields({
     fields,
     enableRegex,
     isInterface,
+    features,
 }: {
     typeName: string;
     fields: Fields;
     enableRegex?: boolean;
     isInterface?: boolean;
+    features?: Neo4jFeaturesSettings;
 }): { [k: string]: string } {
     return {
         ...(isInterface ? {} : { OR: `[${typeName}Where!]`, AND: `[${typeName}Where!]` }),
@@ -94,14 +103,21 @@ function getWhereFields({
                         res[`${f.fieldName}_MATCHES`] = "String";
                     }
 
-                    [
+                    const stringWhereOperators = [
                         "_CONTAINS",
                         "_NOT_CONTAINS",
                         "_STARTS_WITH",
                         "_NOT_STARTS_WITH",
                         "_ENDS_WITH",
                         "_NOT_ENDS_WITH",
-                    ].forEach((comparator) => {
+                    ];
+
+                    Object.entries(features?.filters?.String || {}).forEach(([key, value]) => {
+                        if (value) {
+                            stringWhereOperators.push(`_${key}`);
+                        }
+                    });
+                    stringWhereOperators.forEach((comparator) => {
                         res[`${f.fieldName}${comparator}`] = f.typeMeta.name;
                     });
                     return res;

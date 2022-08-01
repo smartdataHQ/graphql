@@ -18,32 +18,32 @@
  */
 
 import Debug from "debug";
-import { GraphQLResolveInfo, GraphQLSchema, print } from "graphql";
-import { Driver } from "neo4j-driver";
-import { Neo4jGraphQLAuthenticationError, Neo4jGraphQLConfig, Node, Relationship } from "../../classes";
+import type { GraphQLResolveInfo, GraphQLSchema } from "graphql";
+import { print } from "graphql";
+import type { Driver } from "neo4j-driver";
+import type { Neo4jGraphQLConfig, Node, Relationship } from "../../classes";
+import { Neo4jGraphQLAuthenticationError } from "../../classes";
+import { Executor } from "../../classes/Executor";
+import type { ExecutorConstructorParam } from "../../classes/Executor";
 import { DEBUG_GRAPHQL } from "../../constants";
 import createAuthParam from "../../translate/create-auth-param";
-import { Context, Neo4jGraphQLPlugins, JwtPayload } from "../../types";
-import { getToken } from "../../utils/get-token";
+import type { Context, Neo4jGraphQLPlugins, JwtPayload, Neo4jGraphQLAuthPlugin } from "../../types";
+import { getToken, parseBearerToken } from "../../utils/get-token";
+import type { SubscriptionConnectionContext, SubscriptionContext } from "./subscriptions/types";
 
 const debug = Debug(DEBUG_GRAPHQL);
 
+type WrapResolverArguments = {
+    driver?: Driver;
+    config: Neo4jGraphQLConfig;
+    nodes: Node[];
+    relationships: Relationship[];
+    schema: GraphQLSchema;
+    plugins?: Neo4jGraphQLPlugins;
+};
+
 export const wrapResolver =
-    ({
-        driver,
-        config,
-        nodes,
-        relationships,
-        schema,
-        plugins,
-    }: {
-        driver?: Driver;
-        config: Neo4jGraphQLConfig;
-        nodes: Node[];
-        relationships: Relationship[];
-        schema: GraphQLSchema;
-        plugins?: Neo4jGraphQLPlugins;
-    }) =>
+    ({ driver, config, nodes, relationships, schema, plugins }: WrapResolverArguments) =>
     (next) =>
     async (root, args, context: Context, info: GraphQLResolveInfo) => {
         const { driverConfig } = config;
@@ -57,13 +57,17 @@ export const wrapResolver =
             );
         }
 
-        if (!context?.driver) {
-            if (!driver) {
-                throw new Error(
-                    "A Neo4j driver instance must either be passed to Neo4jGraphQL on construction, or passed as context.driver in each request."
-                );
+        if (!context?.executionContext) {
+            if (context?.driver) {
+                context.executionContext = context.driver;
+            } else {
+                if (!driver) {
+                    throw new Error(
+                        "A Neo4j driver instance must either be passed to Neo4jGraphQL on construction, or a driver, session or transaction passed as context.executionContext in each request."
+                    );
+                }
+                context.executionContext = driver;
             }
-            context.driver = driver;
         }
 
         if (!context?.driverConfig) {
@@ -73,28 +77,73 @@ export const wrapResolver =
         context.nodes = nodes;
         context.relationships = relationships;
         context.schema = schema;
-        context.plugins = plugins;
+        context.plugins = plugins || {};
         context.subscriptionsEnabled = Boolean(context.plugins?.subscriptions);
+        context.callbacks = config.callbacks;
 
         if (!context.jwt) {
-            if (context.plugins?.auth) {
-                const token = getToken(context);
-
-                if (token) {
-                    const jwt = await context.plugins.auth.decode<JwtPayload>(token);
-
-                    if (typeof jwt === "string") {
-                        throw new Neo4jGraphQLAuthenticationError("JWT payload cannot be a string");
-                    }
-
-                    context.jwt = jwt;
-                }
-            }
+            const token = getToken(context);
+            context.jwt = await decodeToken(token, context.plugins.auth);
         }
 
         context.auth = createAuthParam({ context });
 
-        context.queryOptions = config.queryOptions;
+        const executorConstructorParam: ExecutorConstructorParam = {
+            executionContext: context.executionContext,
+            auth: context.auth,
+        };
+
+        if (config.queryOptions) {
+            executorConstructorParam.queryOptions = config.queryOptions;
+        }
+
+        if (context.driverConfig?.database) {
+            executorConstructorParam.database = context.driverConfig?.database;
+        }
+
+        if (context.driverConfig?.bookmarks) {
+            executorConstructorParam.bookmarks = context.driverConfig?.bookmarks;
+        }
+
+        context.executor = new Executor(executorConstructorParam);
 
         return next(root, args, context, info);
     };
+
+export const wrapSubscription =
+    (resolverArgs: WrapResolverArguments) =>
+    (next) =>
+    async (root: any, args: any, context: SubscriptionConnectionContext | undefined, info: GraphQLResolveInfo) => {
+        const plugins = resolverArgs?.plugins || {};
+        const contextParams = context?.connectionParams || {};
+
+        if (!plugins.subscriptions) {
+            debug("Subscription Plugin not set");
+            return next(root, args, context, info);
+        }
+
+        const subscriptionContext: SubscriptionContext = {
+            plugin: plugins.subscriptions,
+        };
+
+        if (!context?.jwt && contextParams.authorization) {
+            const token = parseBearerToken(contextParams.authorization);
+            subscriptionContext.jwt = await decodeToken(token, plugins.auth);
+        }
+
+        return next(root, args, { ...context, ...contextParams, ...subscriptionContext }, info);
+    };
+
+async function decodeToken(
+    token: string | undefined,
+    plugin: Neo4jGraphQLAuthPlugin | undefined
+): Promise<JwtPayload | undefined> {
+    if (token && plugin) {
+        const jwt = await plugin.decode<JwtPayload>(token);
+        if (typeof jwt === "string") {
+            throw new Neo4jGraphQLAuthenticationError("JWT payload cannot be a string");
+        }
+        return jwt;
+    }
+    return undefined;
+}

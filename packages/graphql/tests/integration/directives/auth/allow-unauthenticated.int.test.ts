@@ -20,10 +20,10 @@
 import { Neo4jGraphQLAuthJWTPlugin } from "@neo4j/graphql-plugin-auth";
 import { Socket } from "net";
 import { graphql } from "graphql";
-import { Driver } from "neo4j-driver";
+import type { Driver } from "neo4j-driver";
 import { IncomingMessage } from "http";
 import { generate } from "randomstring";
-import neo4j from "../../neo4j";
+import Neo4j from "../../neo4j";
 import { Neo4jGraphQL } from "../../../../src/classes";
 
 // Reference: https://github.com/neo4j/graphql/pull/355
@@ -31,9 +31,11 @@ import { Neo4jGraphQL } from "../../../../src/classes";
 // Reference: https://github.com/neo4j/graphql/pull/342#issuecomment-884061188
 describe("auth/allow-unauthenticated", () => {
     let driver: Driver;
+    let neo4j: Neo4j;
 
     beforeAll(async () => {
-        driver = await neo4j();
+        neo4j = new Neo4j();
+        driver = await neo4j.getDriver();
     });
 
     afterAll(async () => {
@@ -67,8 +69,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -86,7 +87,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -124,8 +125,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -143,7 +143,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -183,8 +183,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -203,7 +202,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -244,8 +243,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -263,7 +261,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -301,8 +299,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -320,7 +317,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -359,8 +356,7 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
-            const session = driver.session({ defaultAccessMode: "WRITE" });
+            const session = await neo4j.getSession({ defaultAccessMode: "WRITE" });
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -379,7 +375,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req, driverConfig: { bookmarks: session.lastBookmark() } },
+                contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark(), { req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });
@@ -417,7 +413,6 @@ describe("auth/allow-unauthenticated", () => {
                 }
             `;
 
-            const secret = "secret";
             const neoSchema = new Neo4jGraphQL({
                 typeDefs,
                 plugins: {
@@ -431,7 +426,7 @@ describe("auth/allow-unauthenticated", () => {
             const req = new IncomingMessage(socket);
 
             const gqlResult = await graphql({
-                contextValue: { driver, req },
+                contextValue: neo4j.getContextValues({ req }),
                 schema: await neoSchema.getSchema(),
                 source: query,
             });

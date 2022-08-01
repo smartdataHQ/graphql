@@ -19,14 +19,15 @@
 
 import { gql } from "apollo-server";
 import { graphql } from "graphql";
-import { Driver } from "neo4j-driver";
+import type { Driver } from "neo4j-driver";
 import { Neo4jGraphQL } from "../../../../src";
 import { generateUniqueType } from "../../../utils/graphql-types";
 import { TestSubscriptionsPlugin } from "../../../utils/TestSubscriptionPlugin";
-import neo4j from "../../neo4j";
+import Neo4j from "../../neo4j";
 
 describe("Subscriptions create", () => {
     let driver: Driver;
+    let neo4j: Neo4j;
     let neoSchema: Neo4jGraphQL;
     let plugin: TestSubscriptionsPlugin;
 
@@ -34,7 +35,8 @@ describe("Subscriptions create", () => {
     const typeMovie = generateUniqueType("Movie");
 
     beforeAll(async () => {
-        driver = await neo4j();
+        neo4j = new Neo4j();
+        driver = await neo4j.getDriver();
         plugin = new TestSubscriptionsPlugin();
         const typeDefs = gql`
             type ${typeActor.name} {
@@ -53,7 +55,7 @@ describe("Subscriptions create", () => {
             config: { enableRegex: true },
             plugins: {
                 subscriptions: plugin,
-            } as any,
+            },
         });
     });
 
@@ -86,7 +88,7 @@ describe("Subscriptions create", () => {
         const gqlResult: any = await graphql({
             schema: await neoSchema.getSchema(),
             source: query,
-            contextValue: { driver },
+            contextValue: neo4j.getContextValues(),
         });
 
         expect(gqlResult.errors).toBeUndefined();
@@ -98,36 +100,42 @@ describe("Subscriptions create", () => {
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { id: "2" } },
+                typename: typeMovie.name,
             },
             {
                 id: expect.any(Number),
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { name: "Andrés" } },
+                typename: typeActor.name,
             },
             {
                 id: expect.any(Number),
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { id: "1" } },
+                typename: typeMovie.name,
             },
             {
                 id: expect.any(Number),
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { id: "4" } },
+                typename: typeMovie.name,
             },
             {
                 id: expect.any(Number),
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { name: "Darrell" } },
+                typename: typeActor.name,
             },
             {
                 id: expect.any(Number),
                 timestamp: expect.any(Number),
                 event: "create",
                 properties: { old: undefined, new: { id: "3" } },
+                typename: typeMovie.name,
             },
         ]);
     });

@@ -17,13 +17,13 @@
  * limitations under the License.
  */
 
-import { dedent } from "graphql-compose";
-import { Node } from "../classes";
-import { AuthOperations, Context, GraphQLWhereArg } from "../types";
+import type { AuthOperations, Context, GraphQLWhereArg } from "../types";
+import type { Node } from "../classes";
 import createAuthAndParams from "./create-auth-and-params";
-import createWhereAndParams from "./where/create-where-and-params";
+import * as CypherBuilder from "./cypher-builder/CypherBuilder";
+import { createCypherWhereParams } from "./where/create-cypher-where-params";
 
-function translateTopLevelMatch({
+export function translateTopLevelMatch({
     node,
     context,
     varName,
@@ -33,73 +33,44 @@ function translateTopLevelMatch({
     node: Node;
     varName: string;
     operation: AuthOperations;
-}): [string, Record<string, unknown>] {
-    const cyphers: string[] = [];
-    let cypherParams = {};
+}): CypherBuilder.CypherResult {
     const { resolveTree } = context;
     const whereInput = resolveTree.args.where as GraphQLWhereArg;
-    const fulltextInput = (resolveTree.args.fulltext || {}) as Record<string, { phrase: string; score_EQUAL?: number }>;
-    const whereStrs: string[] = [];
+    const fulltextInput = (resolveTree.args.fulltext || {}) as Record<string, { phrase: string }>;
 
-    if (!Object.entries(fulltextInput).length) {
-        cyphers.push(`MATCH (${varName}${node.getLabelString(context)})`);
-    } else {
+    const matchNode = new CypherBuilder.NamedNode(varName, { labels: node.getLabels(context) });
+
+    let matchQuery: CypherBuilder.Match<CypherBuilder.Node> | CypherBuilder.db.FullTextQueryNodes;
+
+    if (Object.entries(fulltextInput).length) {
+        // This is only for fulltext search
         if (Object.entries(fulltextInput).length > 1) {
             throw new Error("Can only call one search at any given time");
         }
-
         const [indexName, indexInput] = Object.entries(fulltextInput)[0];
-        const baseParamName = `${varName}_fulltext_${indexName}`;
-        const paramPhraseName = `${baseParamName}_phrase`;
-        cypherParams[paramPhraseName] = indexInput.phrase;
+        const phraseParam = new CypherBuilder.Param(indexInput.phrase);
 
-        cyphers.push(
-            dedent(`
-                CALL db.index.fulltext.queryNodes(
-                    "${indexName}",
-                    $${paramPhraseName}
-                ) YIELD node as this, score as score
-            `)
-        );
+        matchQuery = new CypherBuilder.db.FullTextQueryNodes(matchNode, indexName, phraseParam);
 
-        if (node.nodeDirective?.additionalLabels?.length) {
-            node.getLabels(context).forEach((label) => {
-                whereStrs.push(`"${label}" IN labels(${varName})`);
-            });
-        }
+        const labelsChecks = node.getLabels(context).map((label) => {
+            return CypherBuilder.in(new CypherBuilder.Literal(`"${label}"`), CypherBuilder.labels(matchNode));
+        });
 
-        if (node.fulltextDirective) {
-            const index = node.fulltextDirective.indexes.find((i) => i.name === indexName);
-            let thresholdParamName = baseParamName;
-            let threshold: number | undefined;
-
-            if (indexInput.score_EQUAL) {
-                thresholdParamName = `${thresholdParamName}_score_EQUAL`;
-                threshold = indexInput.score_EQUAL;
-            } else if (index?.defaultThreshold) {
-                thresholdParamName = `${thresholdParamName}_defaultThreshold`;
-                threshold = index.defaultThreshold;
-            }
-
-            if (threshold !== undefined) {
-                cypherParams[thresholdParamName] = threshold;
-                whereStrs.push(`score = ${thresholdParamName}`);
-            }
-        }
+        const andChecks = CypherBuilder.and(...labelsChecks);
+        if (andChecks) matchQuery.where(andChecks);
+    } else {
+        matchQuery = new CypherBuilder.Match(matchNode);
     }
 
     if (whereInput) {
-        const where = createWhereAndParams({
+        const whereOp = createCypherWhereParams({
             whereInput,
-            varName,
-            node,
+            element: node,
             context,
-            recursing: true,
+            targetElement: matchNode,
         });
-        if (where[0]) {
-            whereStrs.push(where[0]);
-            cypherParams = { ...cypherParams, ...where[1] };
-        }
+
+        if (whereOp) matchQuery.where(whereOp);
     }
 
     const whereAuth = createAuthAndParams({
@@ -109,15 +80,13 @@ function translateTopLevelMatch({
         where: { varName, node },
     });
     if (whereAuth[0]) {
-        whereStrs.push(whereAuth[0]);
-        cypherParams = { ...cypherParams, ...whereAuth[1] };
+        const authQuery = new CypherBuilder.RawCypher(() => {
+            return whereAuth;
+        });
+
+        matchQuery.where(authQuery);
     }
 
-    if (whereStrs.length) {
-        cyphers.push(`WHERE ${whereStrs.join(" AND ")}`);
-    }
-
-    return [cyphers.join("\n"), cypherParams];
+    const result = matchQuery.build();
+    return result;
 }
-
-export default translateTopLevelMatch;

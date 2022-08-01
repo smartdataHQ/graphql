@@ -17,24 +17,27 @@
  * limitations under the License.
  */
 
-import { Driver, Session } from "neo4j-driver";
-import { DocumentNode, graphql } from "graphql";
+import type { Driver, Session } from "neo4j-driver";
+import type { DocumentNode } from "graphql";
+import { graphql } from "graphql";
 import { faker } from "@faker-js/faker";
 import { gql } from "apollo-server";
 import { generate } from "randomstring";
-import neo4j from "../../neo4j";
+import Neo4j from "../../neo4j";
 import { Neo4jGraphQL } from "../../../../src/classes";
 import { TestSubscriptionsPlugin } from "../../../utils/TestSubscriptionPlugin";
 
 describe("interface relationships", () => {
     let driver: Driver;
+    let neo4j: Neo4j;
     let neoSchema: Neo4jGraphQL;
     let subscriptionsPlugin: TestSubscriptionsPlugin;
     let typeDefs: DocumentNode;
     let session: Session;
 
     beforeAll(async () => {
-        driver = await neo4j();
+        neo4j = new Neo4j();
+        driver = await neo4j.getDriver();
 
         typeDefs = gql`
             type Episode {
@@ -76,12 +79,12 @@ describe("interface relationships", () => {
             typeDefs,
             plugins: {
                 subscriptions: subscriptionsPlugin,
-            } as any,
+            },
         });
     });
 
-    beforeEach(() => {
-        session = driver.session();
+    beforeEach(async () => {
+        session = await neo4j.getSession();
     });
 
     afterEach(async () => {
@@ -185,7 +188,7 @@ describe("interface relationships", () => {
         const gqlResult = await graphql({
             schema: await neoSchema.getSchema(),
             source: query,
-            contextValue: { driver, driverConfig: { bookmarks: session.lastBookmark() } },
+            contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark()),
             variableValues: {
                 name1,
                 name2,
@@ -237,6 +240,7 @@ describe("interface relationships", () => {
                     },
                     old: undefined,
                 },
+                typename: "Actor",
                 timestamp: expect.any(Number),
             },
             {
@@ -249,6 +253,7 @@ describe("interface relationships", () => {
                     },
                     old: undefined,
                 },
+                typename: "Movie",
                 timestamp: expect.any(Number),
             },
             {
@@ -260,6 +265,7 @@ describe("interface relationships", () => {
                     },
                     old: undefined,
                 },
+                typename: "Episode",
                 timestamp: expect.any(Number),
             },
             {
@@ -271,6 +277,7 @@ describe("interface relationships", () => {
                     },
                     old: undefined,
                 },
+                typename: "Series",
                 timestamp: expect.any(Number),
             },
             {
@@ -282,6 +289,7 @@ describe("interface relationships", () => {
                     },
                     old: undefined,
                 },
+                typename: "Actor",
                 timestamp: expect.any(Number),
             },
         ]);

@@ -17,32 +17,42 @@
  * limitations under the License.
  */
 
-import { CypherStatement, CypherParams } from "../types";
-import { stringifyObject } from "../utils/stringify-object";
-
-/** Generates a string to be used as parameter key */
-export function generateParameterKey(prefix: string, key: string): string {
-    return `${prefix}_${key}`;
-}
-
-/** Serializes an object and splits between the serialized statement and params */
-export function serializeParameters(keyprefix: string, parameters: CypherParams | undefined): CypherStatement {
-    if (!parameters) return ["", {}];
-
-    const cypherParameters: CypherParams = {};
-    const nodeParameters: Record<string, string> = {};
-
-    for (const [key, value] of Object.entries(parameters)) {
-        const paramKey = generateParameterKey(keyprefix, key);
-        cypherParameters[paramKey] = value;
-        nodeParameters[key] = `$${paramKey}`;
-    }
-
-    return [stringifyObject(nodeParameters), cypherParameters];
-}
+import type { CypherEnvironment } from "./Environment";
+import type { CypherCompilable } from "./types";
+import { Param } from "./variables/Param";
 
 /** Adds spaces to the left of the string, returns empty string is variable is undefined or empty string */
 export function padLeft(str: string | undefined): string {
     if (!str) return "";
     return ` ${str}`;
+}
+
+export function escapeLabel(label: string): string {
+    const escapedLabel = label.replace(/`/g, "``");
+    return `\`${escapedLabel}\``;
+}
+
+export function padBlock(block: string, spaces = 4): string {
+    const paddingStr = " ".repeat(spaces);
+    const paddedNewLines = block.replace(/\n/g, `\n${paddingStr}`);
+    return `${paddingStr}${paddedNewLines}`;
+}
+
+export function convertToCypherParams<T>(original: Record<string, T>): Record<string, Param<T>> {
+    return Object.entries(original).reduce((acc, [key, value]) => {
+        acc[key] = new Param(value);
+        return acc;
+    }, {});
+}
+
+/** Compiles the cypher of an element, if the resulting cypher is not empty adds a prefix */
+export function compileCypherIfExists(
+    element: CypherCompilable | undefined,
+    env: CypherEnvironment,
+    { prefix = "", suffix = "" }
+): string {
+    if (!element) return "";
+    const cypher = element.getCypher(env);
+    if (!cypher) return "";
+    return `${prefix}${cypher}${suffix}`;
 }

@@ -19,7 +19,7 @@
 
 import { Neo4jGraphQLAuthJWTPlugin } from "@neo4j/graphql-plugin-auth";
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../src";
 import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
@@ -151,7 +151,8 @@ describe("Node directive with additionalLabels", () => {
                 \\"this0_id\\": \\"1\\",
                 \\"this0_actors0_node_name\\": \\"actor 1\\",
                 \\"this1_id\\": \\"2\\",
-                \\"this1_actors0_node_name\\": \\"actor 2\\"
+                \\"this1_actors0_node_name\\": \\"actor 2\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -172,13 +173,13 @@ describe("Node directive with additionalLabels", () => {
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
             "MATCH (this:\`Film\`:\`Multimedia\`)
-            WHERE this.id = $this_id
+            WHERE this.id = $param0
             DETACH DELETE this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_id\\": \\"123\\"
+                \\"param0\\": \\"123\\"
             }"
         `);
     });
@@ -201,15 +202,16 @@ describe("Node directive with additionalLabels", () => {
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
             "MATCH (this:\`Film\`:\`Multimedia\`)
-            WHERE this.id = $this_id
+            WHERE this.id = $param0
             SET this.id = $this_update_id
             RETURN collect(DISTINCT this { .id }) AS data"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_id\\": \\"1\\",
-                \\"this_update_id\\": \\"2\\"
+                \\"param0\\": \\"1\\",
+                \\"this_update_id\\": \\"2\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

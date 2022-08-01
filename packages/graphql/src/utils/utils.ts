@@ -17,11 +17,12 @@
  * limitations under the License.
  */
 
-import { Integer, isInt } from "neo4j-driver";
+import type { Integer } from "neo4j-driver";
+import { isInt } from "neo4j-driver";
 
 /** Checks if value is string */
 export function isString(value: unknown): value is string {
-    return typeof value === "string" || value instanceof String;
+    return typeof value === "string";
 }
 
 /** Checks if value is a Neo4j int object */
@@ -66,4 +67,14 @@ export function delay(ms: number): Promise<void> {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
+}
+
+/** Omits fields from record */
+export function omitFields<T>(obj: Record<string, T>, fields: string[]): Record<string, T> {
+    return Object.entries(obj)
+        .filter((item) => !fields.includes(item[0]))
+        .reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+        }, {});
 }

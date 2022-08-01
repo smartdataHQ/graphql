@@ -19,13 +19,12 @@
 
 import { Neo4jGraphQLAuthJWTPlugin } from "@neo4j/graphql-plugin-auth";
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../src";
 import { createJwtRequest } from "../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../utils/tck-test-utils";
 
 describe("Cypher NULL", () => {
-    const secret = "secret";
     let typeDefs: DocumentNode;
     let neoSchema: Neo4jGraphQL;
 
@@ -70,7 +69,7 @@ describe("Cypher NULL", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             WHERE this.title IS NULL
             RETURN this { .title } as this"
         `);
@@ -93,7 +92,7 @@ describe("Cypher NULL", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             WHERE this.title IS NOT NULL
             RETURN this { .title } as this"
         `);
@@ -116,8 +115,10 @@ describe("Cypher NULL", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE NOT EXISTS((this)<-[:ACTED_IN]-(:Actor))
+            "MATCH (this:\`Movie\`)
+            WHERE NOT EXISTS {
+                MATCH (this0:\`Actor\`)-[:ACTED_IN]->(this)
+            }
             RETURN this { .title } as this"
         `);
 
@@ -139,8 +140,10 @@ describe("Cypher NULL", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE EXISTS((this)<-[:ACTED_IN]-(:Actor))
+            "MATCH (this:\`Movie\`)
+            WHERE EXISTS {
+                MATCH (this0:\`Actor\`)-[:ACTED_IN]->(this)
+            }
             RETURN this { .title } as this"
         `);
 

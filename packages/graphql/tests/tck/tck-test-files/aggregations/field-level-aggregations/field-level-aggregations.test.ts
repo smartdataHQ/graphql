@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../src";
 import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
@@ -66,8 +66,8 @@ describe("Field Level Aggregations", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            RETURN this { .title, actorsAggregate: { count: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)      RETURN COUNT(n)\\", { this: this })) } } as this"
+            "MATCH (this:\`Movie\`)
+            RETURN this { .title, actorsAggregate: { count: size([(this_actorsAggregate_this0:\`Actor\`)-[this_actorsAggregate_this1:ACTED_IN]->(this) | this_actorsAggregate_this0]) } } as this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`"{}"`);
@@ -96,8 +96,8 @@ describe("Field Level Aggregations", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            RETURN this { actorsAggregate: { count: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)      RETURN COUNT(n)\\", { this: this })), node: { name: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)
+            "MATCH (this:\`Movie\`)
+            RETURN this { actorsAggregate: { count: size([(this_actorsAggregate_this0:\`Actor\`)-[this_actorsAggregate_this1:ACTED_IN]->(this) | this_actorsAggregate_this0]), node: { name: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)
                     WITH n as n
                     ORDER BY size(n.name) DESC
                     WITH collect(n.name) as list
@@ -131,7 +131,7 @@ describe("Field Level Aggregations", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             RETURN this { actorsAggregate: { node: { age: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)
                     RETURN {min: min(n.age), max: max(n.age), average: avg(n.age), sum: sum(n.age)}\\", { this: this })) } } } as this"
         `);
@@ -162,7 +162,7 @@ describe("Field Level Aggregations", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             RETURN this { .title, actorsAggregate: { node: { name: head(apoc.cypher.runFirstColumn(\\"MATCH (this)<-[r:ACTED_IN]-(n:Actor)
                     WITH n as n
                     ORDER BY size(n.name) DESC
@@ -194,7 +194,7 @@ describe("Field Level Aggregations", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             RETURN this { moviesAggregate: { node: { released: head(apoc.cypher.runFirstColumn(\\"MATCH (this)-[r:ACTED_IN]->(n:Movie)
                     RETURN { min: apoc.date.convertFormat(toString(min(n.released)), \\\\\\"iso_zoned_date_time\\\\\\", \\\\\\"iso_offset_date_time\\\\\\"), max: apoc.date.convertFormat(toString(max(n.released)), \\\\\\"iso_zoned_date_time\\\\\\", \\\\\\"iso_offset_date_time\\\\\\") }\\", { this: this })) } } } as this"
         `);

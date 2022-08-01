@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../src";
 import { createJwtRequest } from "../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../utils/tck-test-utils";
@@ -56,14 +56,14 @@ describe("Cypher LocalTime", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE this.time = $this_time
+            "MATCH (this:\`Movie\`)
+            WHERE this.time = $param0
             RETURN this { .time } as this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_time\\": {
+                \\"param0\\": {
                     \\"hour\\": 12,
                     \\"minute\\": 0,
                     \\"second\\": 0,
@@ -88,14 +88,14 @@ describe("Cypher LocalTime", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE this.time >= $this_time_GTE
+            "MATCH (this:\`Movie\`)
+            WHERE this.time >= $param0
             RETURN this { .time } as this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_time_GTE\\": {
+                \\"param0\\": {
                     \\"hour\\": 13,
                     \\"minute\\": 45,
                     \\"second\\": 33,
@@ -138,7 +138,8 @@ describe("Cypher LocalTime", () => {
                     \\"minute\\": 0,
                     \\"second\\": 15,
                     \\"nanosecond\\": 555000000
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -161,7 +162,7 @@ describe("Cypher LocalTime", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             SET this.time = $this_update_time
             RETURN collect(DISTINCT this { .id, .time }) AS data"
         `);
@@ -173,7 +174,8 @@ describe("Cypher LocalTime", () => {
                     \\"minute\\": 24,
                     \\"second\\": 40,
                     \\"nanosecond\\": 845512000
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

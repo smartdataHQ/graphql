@@ -17,13 +17,12 @@
  * limitations under the License.
  */
 
-import {
+import type {
     BooleanValueNode,
     EnumTypeDefinitionNode,
     FloatValueNode,
     InterfaceTypeDefinitionNode,
     IntValueNode,
-    Kind,
     ListValueNode,
     NamedTypeNode,
     ObjectTypeDefinitionNode,
@@ -33,6 +32,7 @@ import {
     UnionTypeDefinitionNode,
     ValueNode,
 } from "graphql";
+import { Kind } from "graphql";
 import getAuth from "./get-auth";
 import getAliasMeta from "./get-alias-meta";
 import getCypherMeta from "./get-cypher-meta";
@@ -41,7 +41,7 @@ import getComputedMeta from "./get-computed-meta";
 import getRelationshipMeta from "./get-relationship-meta";
 import getUniqueMeta from "./parse/get-unique-meta";
 import { SCALAR_TYPES } from "../constants";
-import {
+import type {
     RelationField,
     CypherField,
     PrimitiveField,
@@ -56,10 +56,12 @@ import {
     TimeStampOperations,
     ConnectionField,
     ComputedField,
+    Neo4jGraphQLCallbacks,
 } from "../types";
 import parseValueNode from "./parse-value-node";
 import checkDirectiveCombinations from "./check-directive-combinations";
 import { upperFirst } from "../utils/upper-first";
+import getCallbackMeta from "./get-callback-meta";
 
 export interface ObjectFields {
     relationFields: RelationField[];
@@ -83,6 +85,7 @@ function getObjFieldMeta({
     scalars,
     unions,
     enums,
+    callbacks,
 }: {
     obj: ObjectTypeDefinitionNode | InterfaceTypeDefinitionNode;
     objects: ObjectTypeDefinitionNode[];
@@ -90,6 +93,7 @@ function getObjFieldMeta({
     unions: UnionTypeDefinitionNode[];
     scalars: ScalarTypeDefinitionNode[];
     enums: EnumTypeDefinitionNode[];
+    callbacks?: Neo4jGraphQLCallbacks;
 }) {
     const objInterfaceNames = [...(obj.interfaces || [])] as NamedTypeNode[];
     const objInterfaces = interfaces.filter((i) => objInterfaceNames.map((n) => n.name.value).includes(i.name.value));
@@ -124,6 +128,7 @@ function getObjFieldMeta({
             const coalesceDirective = directives.find((x) => x.name.value === "coalesce");
             const timestampDirective = directives.find((x) => x.name.value === "timestamp");
             const aliasDirective = directives.find((x) => x.name.value === "alias");
+            const callbackDirective = directives.find((x) => x.name.value === "callback");
 
             const unique = getUniqueMeta(directives, obj, field.name.value);
 
@@ -152,6 +157,7 @@ function getObjFieldMeta({
                             "timestamp",
                             "alias",
                             "unique",
+                            "callback",
                         ].includes(x.name.value)
                 ),
                 arguments: [...(field.arguments || [])],
@@ -442,6 +448,11 @@ function getObjFieldMeta({
                         ...baseField,
                     };
 
+                    if (callbackDirective) {
+                        const callback = getCallbackMeta(callbackDirective, callbacks);
+                        primitiveField.callback = callback;
+                    }
+
                     if (idDirective) {
                         const autogenerate = idDirective.arguments?.find((a) => a.name.value === "autogenerate");
                         if (!autogenerate || (autogenerate.value as BooleanValueNode).value) {
@@ -454,6 +465,10 @@ function getObjFieldMeta({
                             }
 
                             primitiveField.autogenerate = true;
+                        }
+                        const global = idDirective.arguments?.find((a) => a.name.value === "global");
+                        if (global) {
+                            primitiveField.isGlobalIdField = true;
                         }
                     }
 

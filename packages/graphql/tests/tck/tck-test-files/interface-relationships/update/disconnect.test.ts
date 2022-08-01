@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../src";
 import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
@@ -79,24 +79,24 @@ describe("Interface Relationships - Update disconnect", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             CALL {
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Movie)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             UNION
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Series)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
             RETURN collect(DISTINCT this { .name }) AS data"
         `);
@@ -117,7 +117,8 @@ describe("Interface Relationships - Update disconnect", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -146,13 +147,13 @@ describe("Interface Relationships - Update disconnect", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             CALL {
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Movie)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
             WITH this, this_disconnect_actedIn0
@@ -160,17 +161,17 @@ describe("Interface Relationships - Update disconnect", () => {
             WITH this, this_disconnect_actedIn0
             OPTIONAL MATCH (this_disconnect_actedIn0)<-[this_disconnect_actedIn0_actors0_rel:ACTED_IN]-(this_disconnect_actedIn0_actors0:Actor)
             WHERE this_disconnect_actedIn0_actors0.name = $updateActors.args.disconnect.actedIn[0].disconnect.actors[0].where.node.name
-            FOREACH(_ IN CASE this_disconnect_actedIn0_actors0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0_actors0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_actors0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
-            RETURN count(*)
+            RETURN count(*) AS _
             UNION
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Series)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
             WITH this, this_disconnect_actedIn0
@@ -178,12 +179,12 @@ describe("Interface Relationships - Update disconnect", () => {
             WITH this, this_disconnect_actedIn0
             OPTIONAL MATCH (this_disconnect_actedIn0)<-[this_disconnect_actedIn0_actors0_rel:ACTED_IN]-(this_disconnect_actedIn0_actors0:Actor)
             WHERE this_disconnect_actedIn0_actors0.name = $updateActors.args.disconnect.actedIn[0].disconnect.actors[0].where.node.name
-            FOREACH(_ IN CASE this_disconnect_actedIn0_actors0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0_actors0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_actors0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
-            RETURN count(*)
+            RETURN count(*) AS _
             }
             RETURN collect(DISTINCT this { .name }) AS data"
         `);
@@ -215,7 +216,8 @@ describe("Interface Relationships - Update disconnect", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -244,13 +246,13 @@ describe("Interface Relationships - Update disconnect", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             CALL {
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Movie)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
             WITH this, this_disconnect_actedIn0
@@ -258,20 +260,20 @@ describe("Interface Relationships - Update disconnect", () => {
             WITH this, this_disconnect_actedIn0
             OPTIONAL MATCH (this_disconnect_actedIn0)<-[this_disconnect_actedIn0_actors0_rel:ACTED_IN]-(this_disconnect_actedIn0_actors0:Actor)
             WHERE this_disconnect_actedIn0_actors0.name = $updateActors.args.disconnect.actedIn[0].disconnect._on.Movie[0].actors[0].where.node.name
-            FOREACH(_ IN CASE this_disconnect_actedIn0_actors0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0_actors0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_actors0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
-            RETURN count(*)
+            RETURN count(*) AS _
             UNION
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Series)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
             RETURN collect(DISTINCT this { .name }) AS data"
         `);
@@ -309,7 +311,8 @@ describe("Interface Relationships - Update disconnect", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -341,13 +344,13 @@ describe("Interface Relationships - Update disconnect", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Actor)
+            "MATCH (this:\`Actor\`)
             WITH this
             CALL {
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Movie)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
             WITH this, this_disconnect_actedIn0
@@ -355,17 +358,17 @@ describe("Interface Relationships - Update disconnect", () => {
             WITH this, this_disconnect_actedIn0
             OPTIONAL MATCH (this_disconnect_actedIn0)<-[this_disconnect_actedIn0_actors0_rel:ACTED_IN]-(this_disconnect_actedIn0_actors0:Actor)
             WHERE this_disconnect_actedIn0_actors0.name = $updateActors.args.disconnect.actedIn[0].disconnect._on.Movie[0].actors[0].where.node.name
-            FOREACH(_ IN CASE this_disconnect_actedIn0_actors0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0_actors0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_actors0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
-            RETURN count(*)
+            RETURN count(*) AS _
             UNION
             WITH this
             OPTIONAL MATCH (this)-[this_disconnect_actedIn0_rel:ACTED_IN]->(this_disconnect_actedIn0:Series)
             WHERE this_disconnect_actedIn0.title STARTS WITH $updateActors.args.disconnect.actedIn[0].where.node.title_STARTS_WITH
-            FOREACH(_ IN CASE this_disconnect_actedIn0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_rel
             )
             WITH this, this_disconnect_actedIn0
@@ -373,12 +376,12 @@ describe("Interface Relationships - Update disconnect", () => {
             WITH this, this_disconnect_actedIn0
             OPTIONAL MATCH (this_disconnect_actedIn0)<-[this_disconnect_actedIn0_actors0_rel:ACTED_IN]-(this_disconnect_actedIn0_actors0:Actor)
             WHERE this_disconnect_actedIn0_actors0.name = $updateActors.args.disconnect.actedIn[0].disconnect.actors[0].where.node.name
-            FOREACH(_ IN CASE this_disconnect_actedIn0_actors0 WHEN NULL THEN [] ELSE [1] END |
+            FOREACH(_ IN CASE WHEN this_disconnect_actedIn0_actors0 IS NULL THEN [] ELSE [1] END |
             DELETE this_disconnect_actedIn0_actors0_rel
             )
-            RETURN count(*)
+            RETURN count(*) AS _
             }
-            RETURN count(*)
+            RETURN count(*) AS _
             }
             RETURN collect(DISTINCT this { .name }) AS data"
         `);
@@ -425,7 +428,8 @@ describe("Interface Relationships - Update disconnect", () => {
                             ]
                         }
                     }
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { TestSubscriptionsPlugin } from "../../../utils/TestSubscriptionPlugin";
 import { Neo4jGraphQL } from "../../../../src";
 import { createJwtRequest } from "../../../utils/create-jwt-request";
@@ -70,11 +70,16 @@ describe("Subscriptions metadata on update", () => {
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
             "WITH [] AS meta
-            MATCH (this:Movie)
-            WHERE this.id = $this_id
+            MATCH (this:\`Movie\`)
+            WHERE this.id = $param0
             WITH this { .* } AS oldProps, this, meta
-            SET this.id = $this_update_id
-            WITH this, meta + { event: \\"update\\", id: id(this), properties: { old: oldProps, new: this { .* } }, timestamp: timestamp() } AS meta
+            CALL {
+            	WITH *
+            	SET this.id = $this_update_id
+            	RETURN meta as update_meta
+            }
+            WITH *, update_meta as meta
+            WITH this, meta + { event: \\"update\\", id: id(this), properties: { old: oldProps, new: this { .* } }, timestamp: timestamp(), typename: \\"Movie\\" } AS meta
             WITH this, meta
             UNWIND meta AS m
             RETURN collect(DISTINCT this { .id }) AS data, collect(DISTINCT m) as meta"
@@ -82,8 +87,9 @@ describe("Subscriptions metadata on update", () => {
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_id\\": \\"1\\",
-                \\"this_update_id\\": \\"2\\"
+                \\"param0\\": \\"1\\",
+                \\"this_update_id\\": \\"2\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

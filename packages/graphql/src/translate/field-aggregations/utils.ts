@@ -17,11 +17,11 @@
  * limitations under the License.
  */
 
-import { ResolveTree } from "graphql-parse-resolve-info";
-import { Node, Relationship } from "../../classes";
-import { Context, RelationField, ConnectionField } from "../../types";
+import type { ResolveTree } from "graphql-parse-resolve-info";
+import type { Node, Relationship } from "../../classes";
+import type { Context, RelationField, ConnectionField } from "../../types";
 import { serializeParamsForApocRun } from "../utils/apoc-run";
-import { AggregationAuth } from "./field-aggregations-auth";
+import type { AggregationAuth } from "./field-aggregations-auth";
 
 export enum AggregationType {
     Int = "IntAggregateSelection",
@@ -57,6 +57,6 @@ export function getFieldByName(name: string, fields: Record<string, ResolveTree>
 
 export function serializeAuthParamsForApocRun(auth: AggregationAuth): Record<string, string> {
     const authParams = serializeParamsForApocRun(auth.params);
-    if (auth.query) authParams.auth = "$auth";
+    if (auth.whereQuery) authParams.auth = "$auth";
     return authParams;
 }

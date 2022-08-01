@@ -17,9 +17,10 @@
  * limitations under the License.
  */
 
-import { GraphQLResolveInfo } from "graphql";
+import type { GraphQLResolveInfo } from "graphql";
 import { makeExecutableSchema } from "@graphql-tools/schema";
-import getNeo4jResolveTree, { GetNeo4jResolveTreeOptions } from "./get-neo4j-resolve-tree";
+import type { GetNeo4jResolveTreeOptions } from "./get-neo4j-resolve-tree";
+import getNeo4jResolveTree from "./get-neo4j-resolve-tree";
 
 describe("getNeo4jResolveTree", () => {
     const schema = makeExecutableSchema({
@@ -38,105 +39,105 @@ describe("getNeo4jResolveTree", () => {
     });
 
     test("creates a resolve tree for a query", () => {
-
-        const resolveTree = getNeo4jResolveTree({
-            schema,
-        } as GraphQLResolveInfo, {
-            resolveTree: {
-                name: 'aQuery',
-                args: {
-                    test: 'test',
-                },
-                fieldsByTypeName: {},
-            } as unknown,
-        } as GetNeo4jResolveTreeOptions);
+        const resolveTree = getNeo4jResolveTree(
+            {
+                schema,
+            } as GraphQLResolveInfo,
+            {
+                resolveTree: {
+                    name: "aQuery",
+                    args: {
+                        test: "test",
+                    },
+                    fieldsByTypeName: {},
+                } as unknown,
+            } as GetNeo4jResolveTreeOptions
+        );
         expect(resolveTree).toEqual({
-            name: 'aQuery',
+            name: "aQuery",
             args: {
-                test: 'test',
+                test: "test",
             },
-            fieldsByTypeName: {
-
-            },
+            fieldsByTypeName: {},
         });
     });
     test("creates a resolve tree for a mutation", () => {
-
-        const resolveTree = getNeo4jResolveTree({
-            schema,
-        } as GraphQLResolveInfo, {
-            resolveTree: {
-                name: 'aMutation',
-                args: {
-                    test: 'test',
-                },
-                fieldsByTypeName: {},
-            } as unknown,
-        } as GetNeo4jResolveTreeOptions);
+        const resolveTree = getNeo4jResolveTree(
+            {
+                schema,
+            } as GraphQLResolveInfo,
+            {
+                resolveTree: {
+                    name: "aMutation",
+                    args: {
+                        test: "test",
+                    },
+                    fieldsByTypeName: {},
+                } as unknown,
+            } as GetNeo4jResolveTreeOptions
+        );
         expect(resolveTree).toEqual({
-            name: 'aMutation',
+            name: "aMutation",
             args: {
-                test: 'test',
+                test: "test",
             },
-            fieldsByTypeName: {
-
-            },
+            fieldsByTypeName: {},
         });
     });
     test("creates a resolve tree for a subscription", () => {
-
-        const resolveTree = getNeo4jResolveTree({
-            schema,
-        } as GraphQLResolveInfo, {
-            resolveTree: {
-                name: 'aSubscription',
-                args: {
-                    test: 'test',
-                },
-                fieldsByTypeName: {},
-            } as unknown,
-        } as GetNeo4jResolveTreeOptions);
+        const resolveTree = getNeo4jResolveTree(
+            {
+                schema,
+            } as GraphQLResolveInfo,
+            {
+                resolveTree: {
+                    name: "aSubscription",
+                    args: {
+                        test: "test",
+                    },
+                    fieldsByTypeName: {},
+                } as unknown,
+            } as GetNeo4jResolveTreeOptions
+        );
         expect(resolveTree).toEqual({
-            name: 'aSubscription',
+            name: "aSubscription",
             args: {
-                test: 'test',
+                test: "test",
             },
-            fieldsByTypeName: {
-
-            },
+            fieldsByTypeName: {},
         });
     });
     test("parses resolver args if passed in", () => {
-
-        const resolveTree = getNeo4jResolveTree({
-            schema,
-        } as GraphQLResolveInfo, {
-            resolveTree: {
-                name: 'aMutation',
+        const resolveTree = getNeo4jResolveTree(
+            {
+                schema,
+            } as GraphQLResolveInfo,
+            {
+                resolveTree: {
+                    name: "aMutation",
+                    args: {
+                        test: "test",
+                        test2: "test2",
+                    },
+                    fieldsByTypeName: {},
+                } as unknown,
                 args: {
-                    test: 'test',
-                    test2: 'test2',
-                },
-                fieldsByTypeName: {},
-            } as unknown,
-            args: {
-                test2: 'test2 from resolver',
-                test3: 42,
-            } as any
-        } as GetNeo4jResolveTreeOptions);
+                    test2: "test2 from resolver",
+                    test3: 42,
+                } as any,
+            } as GetNeo4jResolveTreeOptions
+        );
         expect(resolveTree).toEqual({
-            name: 'aMutation',
+            name: "aMutation",
             args: {
-                test: 'test',
-                test2: 'test2 from resolver',
+                test: "test",
+                test2: "test2 from resolver",
                 test3: {
                     high: 0,
                     low: 42,
-                }
+                },
             },
-            fieldsByTypeName: {
-
-            },
+            fieldsByTypeName: {},
         });
     });
 });

@@ -17,11 +17,12 @@
  * limitations under the License.
  */
 
-import { Driver } from "neo4j-driver";
+import type { Driver } from "neo4j-driver";
 import { generate } from "randomstring";
 import gql from "graphql-tag";
 import neo4j from "./neo4j";
-import { OGM, Model } from "../../src";
+import type { Model } from "../../src";
+import { OGM } from "../../src";
 
 describe("OGM", () => {
     let driver: Driver;
@@ -818,7 +819,7 @@ describe("OGM", () => {
             `;
 
             const ogm = new OGM({ typeDefs, driver });
-            const User = (ogm.model("User") as unknown) as Model;
+            const User = ogm.model("User") as unknown as Model;
 
             await ogm.init();
 

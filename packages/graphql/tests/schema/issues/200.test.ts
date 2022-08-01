@@ -41,6 +41,12 @@ describe("200", () => {
               mutation: Mutation
             }
 
+            type CategoriesConnection {
+              edges: [CategoryEdge!]!
+              pageInfo: PageInfo!
+              totalCount: Int!
+            }
+
             type Category {
               categoryId: ID!
               description: String!
@@ -59,6 +65,11 @@ describe("200", () => {
               description: String! = \\"\\"
               exampleImageLocations: [String!]
               name: String!
+            }
+
+            type CategoryEdge {
+              cursor: String!
+              node: Category!
             }
 
             input CategoryOptions {
@@ -82,6 +93,8 @@ describe("200", () => {
             input CategoryUpdateInput {
               description: String
               exampleImageLocations: [String!]
+              exampleImageLocations_POP: Int
+              exampleImageLocations_PUSH: [String!]
               name: String
             }
 
@@ -152,9 +165,18 @@ describe("200", () => {
               updateCategories(update: CategoryUpdateInput, where: CategoryWhere): UpdateCategoriesMutationResponse!
             }
 
+            \\"\\"\\"Pagination information (Relay)\\"\\"\\"
+            type PageInfo {
+              endCursor: String
+              hasNextPage: Boolean!
+              hasPreviousPage: Boolean!
+              startCursor: String
+            }
+
             type Query {
               categories(options: CategoryOptions, where: CategoryWhere): [Category!]!
               categoriesAggregate(where: CategoryWhere): CategoryAggregateSelection!
+              categoriesConnection(after: String, first: Int, sort: [CategorySort], where: CategoryWhere): CategoriesConnection!
             }
 
             enum SortDirection {

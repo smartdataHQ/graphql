@@ -19,13 +19,12 @@
 
 import { Neo4jGraphQLAuthJWTPlugin } from "@neo4j/graphql-plugin-auth";
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../src";
 import { createJwtRequest } from "../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../utils/tck-test-utils";
 
 describe("Cypher Fragment", () => {
-    const secret = "secret";
     let typeDefs: DocumentNode;
     let neoSchema: Neo4jGraphQL;
 
@@ -90,7 +89,7 @@ describe("Cypher Fragment", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:User)
+            "MATCH (this:\`User\`)
             RETURN this { .id, .username } as this"
         `);
 
@@ -118,7 +117,7 @@ describe("Cypher Fragment", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:User)
+            "MATCH (this:\`User\`)
             RETURN this { .id, owns:  [this_owns IN [(this)-[:OWNS]->(this_owns) WHERE (\\"Tile\\" IN labels(this_owns)) OR (\\"Character\\" IN labels(this_owns)) | head( [ this_owns IN [this_owns] WHERE (\\"Tile\\" IN labels(this_owns)) | this_owns { __resolveType: \\"Tile\\",  .id } ] + [ this_owns IN [this_owns] WHERE (\\"Character\\" IN labels(this_owns)) | this_owns { __resolveType: \\"Character\\",  .id } ] ) ] WHERE this_owns IS NOT NULL]  } as this"
         `);
 
@@ -145,7 +144,7 @@ describe("Cypher Fragment", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:User)
+            "MATCH (this:\`User\`)
             RETURN this { .id, .username } as this"
         `);
 

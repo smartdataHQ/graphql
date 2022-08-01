@@ -17,14 +17,16 @@
  * limitations under the License.
  */
 
-import { Driver } from "neo4j-driver";
+import type { Driver } from "neo4j-driver";
 import { graphql } from "graphql";
 import { generate } from "randomstring";
-import neo4j from "./neo4j";
+import Neo4j from "./neo4j";
 import { Neo4jGraphQL } from "../../src/classes";
+import { isMultiDbUnsupportedError } from "../utils/is-multi-db-unsupported-error";
 
 describe("multi-database", () => {
     let driver: Driver;
+    let neo4j: Neo4j;
     const id = generate({
         charset: "alphabetic",
     });
@@ -32,11 +34,12 @@ describe("multi-database", () => {
     const dbName = "non-default-db-name";
 
     beforeAll(async () => {
-        driver = await neo4j();
+        neo4j = new Neo4j();
+        driver = await neo4j.getDriver();
 
         try {
             // Create DB
-            const createSession = driver.session();
+            const createSession = await neo4j.getSession();
             await createSession.writeTransaction((tx) => tx.run(`CREATE DATABASE \`${dbName}\``));
             await createSession.close();
 
@@ -51,12 +54,7 @@ describe("multi-database", () => {
             await waitSession.close();
         } catch (e) {
             if (e instanceof Error) {
-                if (
-                    e.message.includes(
-                        "This is an administration command and it should be executed against the system database"
-                    ) ||
-                    e.message.includes("Unsupported administration command")
-                ) {
+                if (isMultiDbUnsupportedError(e)) {
                     // No multi-db support, so we skip tests
                     MULTIDB_SUPPORT = false;
                 } else {
@@ -70,7 +68,7 @@ describe("multi-database", () => {
 
     afterAll(async () => {
         if (MULTIDB_SUPPORT) {
-            const dropSession = driver.session();
+            const dropSession = await neo4j.getSession();
             await dropSession.writeTransaction((tx) => tx.run(`DROP DATABASE \`${dbName}\``));
             await dropSession.close();
         }

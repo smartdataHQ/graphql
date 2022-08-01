@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../../src";
 import { createJwtRequest } from "../../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../../utils/tck-test-utils";
@@ -81,7 +81,8 @@ describe("Cypher TimeStamps On Time Fields", () => {
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this0_id\\": \\"123\\"
+                \\"this0_id\\": \\"123\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -103,7 +104,7 @@ describe("Cypher TimeStamps On Time Fields", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             SET this.updatedAt = time()
             SET this.interfaceTimestamp = time()
             SET this.id = $this_update_id
@@ -114,7 +115,8 @@ describe("Cypher TimeStamps On Time Fields", () => {
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
                 \\"this_update_id\\": \\"123\\",
-                \\"this_update_name\\": \\"dan\\"
+                \\"this_update_name\\": \\"dan\\",
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });

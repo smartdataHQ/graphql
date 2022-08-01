@@ -87,6 +87,11 @@ describe("Arrays", () => {
               ratings: [Float!]!
             }
 
+            type MovieEdge {
+              cursor: String!
+              node: Movie!
+            }
+
             input MovieOptions {
               limit: Int
               offset: Int
@@ -106,8 +111,14 @@ describe("Arrays", () => {
 
             input MovieUpdateInput {
               averageRating: Float
+              averageRating_ADD: Float
+              averageRating_DIVIDE: Float
+              averageRating_MULTIPLY: Float
+              averageRating_SUBTRACT: Float
               id: ID
               ratings: [Float!]
+              ratings_POP: Int
+              ratings_PUSH: [Float!]
             }
 
             input MovieWhere {
@@ -137,15 +148,30 @@ describe("Arrays", () => {
               ratings_NOT_INCLUDES: Float
             }
 
+            type MoviesConnection {
+              edges: [MovieEdge!]!
+              pageInfo: PageInfo!
+              totalCount: Int!
+            }
+
             type Mutation {
               createMovies(input: [MovieCreateInput!]!): CreateMoviesMutationResponse!
               deleteMovies(where: MovieWhere): DeleteInfo!
               updateMovies(update: MovieUpdateInput, where: MovieWhere): UpdateMoviesMutationResponse!
             }
 
+            \\"\\"\\"Pagination information (Relay)\\"\\"\\"
+            type PageInfo {
+              endCursor: String
+              hasNextPage: Boolean!
+              hasPreviousPage: Boolean!
+              startCursor: String
+            }
+
             type Query {
               movies(options: MovieOptions, where: MovieWhere): [Movie!]!
               moviesAggregate(where: MovieWhere): MovieAggregateSelection!
+              moviesConnection(after: String, first: Int, sort: [MovieSort], where: MovieWhere): MoviesConnection!
             }
 
             enum SortDirection {

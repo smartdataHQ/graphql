@@ -19,7 +19,7 @@
 
 /* eslint-disable-next-line import/no-extraneous-dependencies */
 import { gql } from "apollo-server-core";
-import { DirectiveNode, ObjectTypeDefinitionNode } from "graphql";
+import type { DirectiveNode, ObjectTypeDefinitionNode } from "graphql";
 import getObjFieldMeta from "../get-obj-field-meta";
 import parseFulltextDirective from "./parse-fulltext-directive";
 
@@ -33,7 +33,7 @@ describe("parseFulltextDirective", () => {
             }
         `;
 
-        const definition = (typeDefs.definitions[0] as unknown) as ObjectTypeDefinitionNode;
+        const definition = typeDefs.definitions[0] as unknown as ObjectTypeDefinitionNode;
         const directive = (definition.directives || [])[0] as DirectiveNode;
 
         const nodeFields = getObjFieldMeta({
@@ -62,7 +62,7 @@ describe("parseFulltextDirective", () => {
             }
         `;
 
-        const definition = (typeDefs.definitions[0] as unknown) as ObjectTypeDefinitionNode;
+        const definition = typeDefs.definitions[0] as unknown as ObjectTypeDefinitionNode;
         const directive = (definition.directives || [])[0] as DirectiveNode;
 
         const nodeFields = getObjFieldMeta({
@@ -97,7 +97,7 @@ describe("parseFulltextDirective", () => {
             }
         `;
 
-        const definition = (typeDefs.definitions[0] as unknown) as ObjectTypeDefinitionNode;
+        const definition = typeDefs.definitions[0] as unknown as ObjectTypeDefinitionNode;
         const directive = (definition.directives || [])[0] as DirectiveNode;
 
         const nodeFields = getObjFieldMeta({

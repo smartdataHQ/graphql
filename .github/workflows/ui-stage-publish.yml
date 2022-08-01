@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: "Download built UI"
-        uses: actions/github-script@v6.0.0
+        uses: actions/github-script@v6.1.0
         with:
           script: |
             var artifacts = await github.rest.actions.listWorkflowRunArtifacts({
@@ -37,6 +37,7 @@ jobs:
       - id: get-pr-number
         run: |
           number=$(<prnumber)
+          case "$number" in ''|*[!0-9]*) echo "Provided PR number is not an integer"; exit 1 ;; esac
           echo "::set-output name=pr-number::$number"
       - uses: actions/setup-node@v3
         with:
@@ -44,16 +45,16 @@ jobs:
       - name: Publish UI
         run: |
           npm install -g surge
-          surge . neo4j-graphql-ui-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh --token ${{ secrets.SURGE_TOKEN }}
+          surge . neo4j-graphql-toolbox-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh --token ${{ secrets.SURGE_TOKEN }}
       - name: Comment on PR
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@39c5b5dc7717447d0cba270cd115037d32d28443 # renovate: tag=v2.2.0
         with:
           number: ${{ steps.get-pr-number.outputs.pr-number }}
           message: |
             Looks like you've updated the UI!
 
             Check out your changes at
-             http://neo4j-graphql-ui-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh (=> for local development; use for instance [Neo4j Desktop](https://neo4j.com/download/))
+             http://neo4j-graphql-toolbox-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh (=> for local development; use for instance [Neo4j Desktop](https://neo4j.com/download/))
             or
-             https://neo4j-graphql-ui-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh (=> use to connect to an [Aura Free](https://neo4j.com/cloud/aura-free/) dbms)
+             https://neo4j-graphql-toolbox-stage-${{ steps.get-pr-number.outputs.pr-number }}.surge.sh (=> use to connect to an [Aura Free](https://neo4j.com/cloud/aura-free/) dbms)
           GITHUB_TOKEN: ${{ secrets.NEO4J_TEAM_GRAPHQL_PERSONAL_ACCESS_TOKEN }}

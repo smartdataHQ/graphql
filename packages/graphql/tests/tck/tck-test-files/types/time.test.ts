@@ -18,7 +18,7 @@
  */
 
 import { gql } from "apollo-server";
-import { DocumentNode } from "graphql";
+import type { DocumentNode } from "graphql";
 import { Neo4jGraphQL } from "../../../../src";
 import { createJwtRequest } from "../../../utils/create-jwt-request";
 import { formatCypher, translateQuery, formatParams } from "../../utils/tck-test-utils";
@@ -56,14 +56,14 @@ describe("Cypher Time", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE this.time = $this_time
+            "MATCH (this:\`Movie\`)
+            WHERE this.time = $param0
             RETURN this { .time } as this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_time\\": {
+                \\"param0\\": {
                     \\"hour\\": 12,
                     \\"minute\\": 0,
                     \\"second\\": 0,
@@ -89,14 +89,14 @@ describe("Cypher Time", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
-            WHERE this.time >= $this_time_GTE
+            "MATCH (this:\`Movie\`)
+            WHERE this.time >= $param0
             RETURN this { .time } as this"
         `);
 
         expect(formatParams(result.params)).toMatchInlineSnapshot(`
             "{
-                \\"this_time_GTE\\": {
+                \\"param0\\": {
                     \\"hour\\": 13,
                     \\"minute\\": 45,
                     \\"second\\": 33,
@@ -141,7 +141,8 @@ describe("Cypher Time", () => {
                     \\"second\\": 15,
                     \\"nanosecond\\": 555000000,
                     \\"timeZoneOffsetSeconds\\": -3600
-                }
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
@@ -164,7 +165,7 @@ describe("Cypher Time", () => {
         });
 
         expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
-            "MATCH (this:Movie)
+            "MATCH (this:\`Movie\`)
             SET this.time = $this_update_time
             RETURN collect(DISTINCT this { .id, .time }) AS data"
         `);
@@ -177,7 +178,48 @@ describe("Cypher Time", () => {
                     \\"second\\": 40,
                     \\"nanosecond\\": 845512000,
                     \\"timeZoneOffsetSeconds\\": 23400
+                },
+                \\"resolvedCallbacks\\": {}
+            }"
+        `);
+    });
+
+    test("Create with HH:MM format", async () => {
+        const query = gql`
+            mutation {
+                createMovies(input: [{ time: "22:00" }]) {
+                    movies {
+                        time
+                    }
                 }
+            }
+        `;
+
+        const req = createJwtRequest("secret", {});
+        const result = await translateQuery(neoSchema, query, {
+            req,
+        });
+
+        expect(formatCypher(result.cypher)).toMatchInlineSnapshot(`
+            "CALL {
+            CREATE (this0:Movie)
+            SET this0.time = $this0_time
+            RETURN this0
+            }
+            RETURN [
+            this0 { .time }] AS data"
+        `);
+
+        expect(formatParams(result.params)).toMatchInlineSnapshot(`
+            "{
+                \\"this0_time\\": {
+                    \\"hour\\": 22,
+                    \\"minute\\": 0,
+                    \\"second\\": 0,
+                    \\"nanosecond\\": 0,
+                    \\"timeZoneOffsetSeconds\\": 0
+                },
+                \\"resolvedCallbacks\\": {}
             }"
         `);
     });
