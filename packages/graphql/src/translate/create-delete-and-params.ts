@@ -19,7 +19,7 @@
 
 import type { Node, Relationship } from "../classes";
 import type { Context } from "../types";
-import createAuthAndParams from "./create-auth-and-params";
+import { createAuthAndParams } from "./create-auth-and-params";
 import createConnectionWhereAndParams from "./where/create-connection-where-and-params";
 import { AUTH_FORBIDDEN_ERROR, META_CYPHER_VARIABLE } from "../constants";
 import { createEventMetaObject } from "./subscriptions/create-event-meta";
@@ -82,19 +82,19 @@ function createDeleteAndParams({
                 const v = relationField.union ? value[refNode.name] : value;
                 const deletes = relationField.typeMeta.array ? v : [v];
                 deletes.forEach((d, index) => {
-                    const _varName = chainStr
+                    const variableName = chainStr
                         ? `${varName}${index}`
                         : `${varName}_${key}${
                               relationField.union || relationField.interface ? `_${refNode.name}` : ""
                           }${index}`;
-                    const relationshipVariable = `${_varName}_relationship`;
+                    const relationshipVariable = `${variableName}_relationship`;
                     const relTypeStr = `[${relationshipVariable}:${relationField.type}]`;
 
                     const whereStrs: string[] = [];
                     if (d.where) {
                         try {
                             const whereAndParams = createConnectionWhereAndParams({
-                                nodeVariable: _varName,
+                                nodeVariable: variableName,
                                 whereInput: d.where,
                                 node: refNode,
                                 context,
@@ -106,6 +106,7 @@ function createDeleteAndParams({
                             });
                             if (whereAndParams[0]) {
                                 whereStrs.push(whereAndParams[0]);
+                                res.params = { ...res.params, ...whereAndParams[1] };
                             }
                         } catch {
                             return;
@@ -117,13 +118,15 @@ function createDeleteAndParams({
                     }
 
                     const labels = refNode.getLabelString(context);
-                    res.strs.push(`OPTIONAL MATCH (${parentVar})${inStr}${relTypeStr}${outStr}(${_varName}${labels})`);
+                    res.strs.push(
+                        `OPTIONAL MATCH (${parentVar})${inStr}${relTypeStr}${outStr}(${variableName}${labels})`
+                    );
 
                     const whereAuth = createAuthAndParams({
                         operations: "DELETE",
                         entity: refNode,
                         context,
-                        where: { varName: _varName, node: refNode },
+                        where: { varName: variableName, node: refNode },
                     });
                     if (whereAuth[0]) {
                         whereStrs.push(whereAuth[0]);
@@ -138,11 +141,11 @@ function createDeleteAndParams({
                         operations: "DELETE",
                         context,
                         escapeQuotes: Boolean(insideDoWhen),
-                        allow: { parentNode: refNode, varName: _varName },
+                        allow: { parentNode: refNode, varName: variableName },
                     });
                     if (allowAuth[0]) {
                         const quote = insideDoWhen ? `\\"` : `"`;
-                        res.strs.push(`WITH ${[...withVars, _varName].join(", ")}`);
+                        res.strs.push(`WITH ${[...withVars, variableName].join(", ")}`);
                         res.strs.push(
                             `CALL apoc.util.validate(NOT (${allowAuth[0]}), ${quote}${AUTH_FORBIDDEN_ERROR}${quote}, [0])`
                         );
@@ -173,9 +176,9 @@ function createDeleteAndParams({
                             context,
                             node: refNode,
                             deleteInput: nestedDeleteInput,
-                            varName: _varName,
-                            withVars: [...withVars, _varName],
-                            parentVar: _varName,
+                            varName: variableName,
+                            withVars: [...withVars, variableName],
+                            parentVar: variableName,
                             parameterPrefix: `${parameterPrefix}${!recursing ? `.${key}` : ""}${
                                 relationField.union ? `.${refNode.name}` : ""
                             }${relationField.typeMeta.array ? `[${index}]` : ""}.delete`,
@@ -194,9 +197,9 @@ function createDeleteAndParams({
                                     context,
                                     node: refNode,
                                     deleteInput: onDelete,
-                                    varName: _varName,
-                                    withVars: [...withVars, _varName],
-                                    parentVar: _varName,
+                                    varName: variableName,
+                                    withVars: [...withVars, variableName],
+                                    parentVar: variableName,
                                     parameterPrefix: `${parameterPrefix}${!recursing ? `.${key}` : ""}${
                                         relationField.union ? `.${refNode.name}` : ""
                                     }${relationField.typeMeta.array ? `[${index}]` : ""}.delete._on.${
@@ -210,9 +213,9 @@ function createDeleteAndParams({
                         }
                     }
 
-                    const nodeToDelete = `${_varName}_to_delete`;
+                    const nodeToDelete = `${variableName}_to_delete`;
                     res.strs.push(
-                        `WITH ${[...withVars, `collect(DISTINCT ${_varName}) as ${nodeToDelete}`].join(", ")}`
+                        `WITH ${[...withVars, `collect(DISTINCT ${variableName}) as ${nodeToDelete}`].join(", ")}`
                     );
 
                     if (context.subscriptionsEnabled) {
@@ -227,7 +230,12 @@ function createDeleteAndParams({
                         );
                     }
 
-                    res.strs.push(`FOREACH(x IN ${_varName}_to_delete | DETACH DELETE x)`);
+                    res.strs.push("CALL {");
+                    res.strs.push(`\tWITH ${variableName}_to_delete`);
+                    res.strs.push(`\tUNWIND ${variableName}_to_delete AS x`);
+                    res.strs.push(`\tDETACH DELETE x`);
+                    res.strs.push("\tRETURN count(*) AS _"); // Avoids CANNOT END WITH DETACH DELETE ERROR
+                    res.strs.push("}");
                     // TODO - relationship validation
                 });
             });

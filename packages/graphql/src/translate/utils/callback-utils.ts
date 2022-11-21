@@ -19,6 +19,7 @@
 
 import type { CallbackBucket } from "../../classes/CallbackBucket";
 import type { PrimitiveField } from "../../types";
+import Cypher from "@neo4j/cypher-builder";
 
 export const addCallbackAndSetParam = (
     field: PrimitiveField,
@@ -27,18 +28,47 @@ export const addCallbackAndSetParam = (
     callbackBucket: CallbackBucket,
     strs: string[],
     operation: "CREATE" | "UPDATE"
-) => {
+): void => {
     if (!field.callback || !field.callback.operations.includes(operation)) {
         return;
     }
 
-    const paramName = `${varName}_${field.fieldName}_${field.callback?.name}`;
+    const paramName = `${varName}_${field.fieldName}_${field.callback?.callbackName}`;
 
     callbackBucket.addCallback({
-        functionName: field.callback?.name,
+        functionName: field.callback?.callbackName,
         paramName,
         parent,
     });
 
     strs.push(`SET ${varName}.${field.dbPropertyName} = $resolvedCallbacks.${paramName}`);
+};
+
+export const addCallbackAndSetParamCypher = (
+    field: PrimitiveField,
+    variable: Cypher.Variable,
+    parent: any,
+    callbackBucket: CallbackBucket,
+    operation: "CREATE" | "UPDATE",
+    node: Cypher.Node
+): [Cypher.PropertyRef, Cypher.RawCypher] | [] => {
+    if (!field.callback || !field.callback.operations.includes(operation)) {
+        return [];
+    }
+
+    const propRef = node.property(field.dbPropertyName as string);
+    const rawCypherStatement = new Cypher.RawCypher((env: Cypher.Environment) => {
+        const variableCypher = variable.getCypher(env);
+        const paramName = `${variableCypher}_${field.fieldName}_${field.callback?.callbackName}`;
+
+        callbackBucket.addCallback({
+            functionName: field.callback?.callbackName as string,
+            paramName,
+            parent,
+        });
+
+        return [`$resolvedCallbacks.${paramName}`, {}];
+    });
+
+    return [propRef, rawCypherStatement];
 };

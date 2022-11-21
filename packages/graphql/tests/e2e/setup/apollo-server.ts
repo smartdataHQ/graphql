@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 
-/* eslint-disable import/no-extraneous-dependencies */
 import type { Server } from "http";
 import { createServer } from "http";
 import type { AddressInfo } from "ws";
@@ -144,4 +143,3 @@ export class ApolloTestServer implements TestGraphQLServer {
         });
     }
 }
-/* eslint-enable import/no-extraneous-dependencies */

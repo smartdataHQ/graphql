@@ -60,7 +60,7 @@ describe("parseExcludeDirective", () => {
 
         const directive = (parse(typeDefs) as any).definitions[0].directives[0] as DirectiveNode | undefined;
 
-        const expected = new Exclude({ operations: ["create", "read", "update", "delete"] });
+        const expected = new Exclude({ operations: ["create", "read", "update", "delete", "subscribe"] });
 
         expect(parseExcludeDirective(directive)).toMatchObject(expected);
     });

@@ -19,7 +19,7 @@
 
 import type { Driver } from "neo4j-driver";
 import path from "path";
-// eslint-disable-next-line import/no-extraneous-dependencies
+
 import { gql } from "apollo-server";
 import neo4j from "./utils/neo4j";
 import { setupDatabase, cleanDatabase } from "./utils/setup-database";
@@ -28,6 +28,8 @@ import { collectTests, collectCypherTests } from "./utils/collect-test-files";
 import { ResultsWriter } from "./utils/ResultsWriter";
 import { ResultsDisplay } from "./utils/ResultsDisplay";
 import { TestRunner } from "./utils/TestRunner";
+import type * as Performance from "./types";
+import { schemaPerformance } from "./schema-performance";
 
 let driver: Driver;
 
@@ -41,9 +43,15 @@ const typeDefs = gql`
         directed: [Movie!]! @relationship(type: "DIRECTED", direction: OUT)
         reviewed: [Movie!]! @relationship(type: "REVIEWED", direction: OUT)
         produced: [Movie!]! @relationship(type: "PRODUCED", direction: OUT)
+        likes: [Likable!]! @relationship(type: "LIKES", direction: OUT)
     }
 
-    type Movie {
+    type Movie
+        @fulltext(
+            indexes: [
+                { queryName: "movieTaglineFulltextQuery", name: "MovieTaglineFulltextIndex", fields: ["tagline"] }
+            ]
+        ) {
         id: ID!
         title: String!
         tagline: String
@@ -52,11 +60,13 @@ const typeDefs = gql`
         directors: [Person!]! @relationship(type: "DIRECTED", direction: IN)
         reviewers: [Person!]! @relationship(type: "REVIEWED", direction: IN)
         producers: [Person!]! @relationship(type: "PRODUCED", direction: IN)
+        likedBy: [User!]! @relationship(type: "LIKES", direction: IN)
+        oneActorName: String @cypher(statement: "MATCH (this)<-[:ACTED_IN]-(a:Person) RETURN a.name")
     }
 
     type User {
         name: String!
-        liked: [Likable!]! @relationship(type: "LIKES", direction: OUT)
+        likes: [Likable!]! @relationship(type: "LIKES", direction: OUT)
     }
 `;
 
@@ -67,7 +77,17 @@ async function beforeAll() {
     neoSchema = new Neo4jGraphQL({
         typeDefs,
     });
-    await dbReset();
+    await resetDb();
+}
+
+function beforeEach(_testInfo: Performance.TestInfo): Promise<void> {
+    return Promise.resolve();
+}
+
+async function afterEach(testInfo: Performance.TestInfo): Promise<void> {
+    if (testInfo.type === "mutation") {
+        await resetDb();
+    }
 }
 
 async function afterAll() {
@@ -81,6 +101,14 @@ async function afterAll() {
 }
 
 async function main() {
+    if (process.argv.includes("--schema")) {
+        await schemaPerformance();
+    } else {
+        await queryPerformance();
+    }
+}
+
+async function queryPerformance() {
     try {
         await beforeAll();
         const resultsWriter = new ResultsWriter(path.join(__dirname, "/performance.json"));
@@ -109,17 +137,20 @@ async function runTests(cypher: boolean) {
     const gqltests = await collectTests(path.join(__dirname, "graphql"));
     const runner = new TestRunner(driver, neoSchema);
 
-    const gqlTestsResuts = await runner.runTests(gqltests);
+    const gqlTestsResuts = await runner.runTests(gqltests, { beforeEach, afterEach });
     if (cypher) {
         const cypherTests = await collectCypherTests(path.join(__dirname, "cypher"));
-        const cypherTestsResults = await runner.runCypherTests(cypherTests);
+        const cypherTestsResults = await runner.runCypherTests(cypherTests, {
+            beforeEach,
+            afterEach,
+        });
         return [...gqlTestsResuts, ...cypherTestsResults];
     }
 
     return gqlTestsResuts;
 }
 
-async function dbReset() {
+async function resetDb() {
     const session = driver.session();
     try {
         await setupDatabase(session);

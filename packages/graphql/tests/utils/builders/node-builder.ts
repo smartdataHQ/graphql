@@ -40,7 +40,7 @@ export class NodeBuilder extends Builder<Node, NodeConstructor> {
             objectFields: [],
             temporalFields: [],
             pointFields: [],
-            computedFields: [],
+            customResolverFields: [],
             ...newOptions,
         });
     }

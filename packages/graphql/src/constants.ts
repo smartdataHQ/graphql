@@ -24,11 +24,9 @@ export const AUTH_UNAUTHENTICATED_ERROR = "@neo4j/graphql/UNAUTHENTICATED";
 export const MIN_VERSIONS = [{ majorMinor: "4.3", neo4j: "4.3.2" }];
 export const REQUIRED_APOC_FUNCTIONS = [
     "apoc.util.validatePredicate",
-    "apoc.cypher.runFirstColumn",
-    "apoc.coll.sortMulti",
-    "apoc.coll.flatten",
+    "apoc.cypher.runFirstColumnSingle",
+    "apoc.cypher.runFirstColumnMany",
     "apoc.date.convertFormat",
-    "apoc.map.values",
 ];
 export const REQUIRED_APOC_PROCEDURES = ["apoc.util.validate", "apoc.do.when", "apoc.cypher.doIt"];
 export const DEBUG_ALL = `${DEBUG_PREFIX}:*`;
@@ -104,3 +102,6 @@ export enum RelationshipQueryDirectionOption {
 
 export const META_CYPHER_VARIABLE = "meta";
 export const META_OLD_PROPS_CYPHER_VARIABLE = "oldProps";
+
+export const DBMS_COMPONENTS_QUERY =
+    "CALL dbms.components() YIELD versions, edition UNWIND versions AS version RETURN version, edition";

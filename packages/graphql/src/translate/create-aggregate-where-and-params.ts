@@ -69,7 +69,7 @@ function aggregate({
         if (["AND", "OR"].includes(key)) {
             const innerClauses: string[] = [];
 
-            (value as unknown as any[]).forEach((v: any, i) => {
+            (value as any[]).forEach((v: any, i) => {
                 const recurse = aggregate({
                     chainStr: `${chainStr}_${key}_${i}`,
                     inputValue: v,
@@ -135,10 +135,8 @@ function aggregate({
         if (logicalOperators.some((fO) => operatorString.split(`SUM_`)[1] === fO)) {
             const [, opStr] = operatorString.split("SUM_");
             const operator = createOperator(opStr);
-            const hoistedVariable = `${paramName}_SUM`;
 
-            withStrs.push(`sum(${variable}.${dbPropertyName}) AS ${hoistedVariable}`);
-            aggregations.push(`${hoistedVariable} ${operator} toFloat($${paramName})`);
+            aggregations.push(`sum(${variable}.${dbPropertyName}) ${operator} toFloat($${paramName})`);
 
             return;
         }
@@ -216,7 +214,7 @@ function createPredicate({
         if (["AND", "OR"].includes(key)) {
             const innerClauses: string[] = [];
 
-            (value as unknown as any[]).forEach((v: any, i) => {
+            (value as any[]).forEach((v: any, i) => {
                 const recurse = createPredicate({
                     node,
                     chainStr: `${chainStr}_${key}_${i}`,
@@ -310,7 +308,7 @@ function createAggregateWhereAndParams({
     const labels = node.getLabelString(context);
     const matchStr = `MATCH (${varName})${inStr}${relTypeStr}${outStr}(${nodeVariable}${labels})`;
 
-    cyphers.push(`apoc.cypher.runFirstColumn(" ${matchStr}`);
+    cyphers.push(`apoc.cypher.runFirstColumnSingle(" ${matchStr}`);
 
     const { aggregations, params, withStrs } = createPredicate({
         aggregation,
@@ -338,7 +336,7 @@ function createAggregateWhereAndParams({
               .join(", ")}`
         : "";
 
-    cyphers.push(`", { ${varName}: ${varName}${apocParams} }, false )`);
+    cyphers.push(`", { ${varName}: ${varName}${apocParams} })`);
 
     return [cyphers.join("\n"), params];
 }

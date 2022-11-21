@@ -17,13 +17,14 @@
  * limitations under the License.
  */
 
-import { generate } from "randomstring";
 import * as neo4j from "neo4j-driver";
-import { test, describe, expect, beforeAll, afterAll } from "./utils/pagemodel";
+import * as base from "@playwright/test";
+import { generate } from "randomstring";
+import { test, expect, beforeAll, afterAll } from "./utils/pagemodel";
 
 const { NEO_USER = "admin", NEO_PASSWORD = "password", NEO_URL = "neo4j://localhost:7687/neo4j" } = process.env;
 
-describe("workflow", () => {
+base.test.describe("workflow", () => {
     const id = generate({
         charset: "alphabetic",
     });
@@ -60,7 +61,7 @@ describe("workflow", () => {
 
     let driver: neo4j.Driver;
 
-    beforeAll(async () => {
+    beforeAll(() => {
         driver = neo4j.driver(NEO_URL, neo4j.auth.basic(NEO_USER, NEO_PASSWORD));
     });
 
@@ -69,14 +70,14 @@ describe("workflow", () => {
     });
 
     test("should perform workflow end-to-end", async ({ page, loginPage, schemaEditorPage, editorPage }) => {
-        await loginPage.login();
+        await loginPage.loginDismissIntrospection();
 
         await schemaEditorPage.setTypeDefs(typeDefs);
         await schemaEditorPage.buildSchema();
 
         await editorPage.setQuery(query);
 
-        const session = await driver.session();
+        const session = driver.session();
         try {
             await session.run(`
                 CREATE (:Movie { id: "${id}" })
@@ -110,5 +111,21 @@ describe("workflow", () => {
                 movies: [{ id }],
             },
         });
+    });
+
+    test("should be able to switch between type defs view and editor view", async ({
+        loginPage,
+        schemaEditorPage,
+        editorPage,
+    }) => {
+        await loginPage.loginDismissIntrospection();
+
+        await schemaEditorPage.setTypeDefs(typeDefs);
+        await schemaEditorPage.buildSchema();
+
+        await editorPage.goToTypeDefinitionView();
+        await schemaEditorPage.goToEditorView();
+        await editorPage.goToTypeDefinitionView();
+        await schemaEditorPage.goToEditorView();
     });
 });

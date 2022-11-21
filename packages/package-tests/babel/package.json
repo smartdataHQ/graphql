@@ -9,12 +9,12 @@
     "author": "Neo4j Inc.",
     "dependencies": {
         "@neo4j/graphql": "file:./package",
-        "graphql": "^16.2.0",
-        "neo4j-driver": "^4.2.0"
+        "graphql": "^16.6.0",
+        "neo4j-driver": "^5.0.0"
     },
     "devDependencies": {
-        "@babel/core": "7.18.9",
-        "@babel/node": "7.18.9",
-        "@babel/preset-env": "7.18.9"
+        "@babel/core": "7.20.2",
+        "@babel/node": "7.20.2",
+        "@babel/preset-env": "7.20.2"
     }
 }

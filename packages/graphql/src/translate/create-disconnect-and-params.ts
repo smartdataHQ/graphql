@@ -19,7 +19,7 @@
 
 import type { Node, Relationship } from "../classes";
 import type { RelationField, Context } from "../types";
-import createAuthAndParams from "./create-auth-and-params";
+import { createAuthAndParams } from "./create-auth-and-params";
 import { AUTH_FORBIDDEN_ERROR } from "../constants";
 import createConnectionWhereAndParams from "./where/create-connection-where-and-params";
 
@@ -58,10 +58,10 @@ function createDisconnectAndParams({
         disconnect: any,
         index: number
     ): { subquery: string; params: Record<string, any> } {
-        const _varName = `${varName}${index}`;
+        const variableName = `${varName}${index}`;
         const inStr = relationField.direction === "IN" ? "<-" : "-";
         const outStr = relationField.direction === "OUT" ? "->" : "-";
-        const relVarName = `${_varName}_rel`;
+        const relVarName = `${variableName}_rel`;
         const relTypeStr = `[${relVarName}:${relationField.type}]`;
 
         const subquery: string[] = [];
@@ -70,7 +70,7 @@ function createDisconnectAndParams({
         const label = labelOverride ? `:${labelOverride}` : labels;
 
         subquery.push(`WITH ${withVars.join(", ")}`);
-        subquery.push(`OPTIONAL MATCH (${parentVar})${inStr}${relTypeStr}${outStr}(${_varName}${label})`);
+        subquery.push(`OPTIONAL MATCH (${parentVar})${inStr}${relTypeStr}${outStr}(${variableName}${label})`);
 
         const relationship = context.relationships.find(
             (x) => x.properties === relationField.properties
@@ -81,7 +81,7 @@ function createDisconnectAndParams({
         if (disconnect.where) {
             try {
                 const whereAndParams = createConnectionWhereAndParams({
-                    nodeVariable: _varName,
+                    nodeVariable: variableName,
                     whereInput: disconnect.where,
                     node: relatedNode,
                     context,
@@ -91,6 +91,7 @@ function createDisconnectAndParams({
                 });
                 if (whereAndParams[0]) {
                     whereStrs.push(whereAndParams[0]);
+                    params = { ...params, ...whereAndParams[1] };
                 }
             } catch {
                 return { subquery: "", params: {} };
@@ -102,7 +103,7 @@ function createDisconnectAndParams({
                 operations: "DISCONNECT",
                 entity: relatedNode,
                 context,
-                where: { varName: _varName, node: relatedNode },
+                where: { varName: variableName, node: relatedNode },
             });
             if (whereAuth[0]) {
                 whereStrs.push(whereAuth[0]);
@@ -116,7 +117,7 @@ function createDisconnectAndParams({
 
         const nodeMatrix: { node: Node; name: string }[] = [
             { node: parentNode, name: parentVar },
-            { node: relatedNode, name: _varName },
+            { node: relatedNode, name: variableName },
         ];
 
         const preAuth = nodeMatrix.reduce(
@@ -147,7 +148,7 @@ function createDisconnectAndParams({
 
         if (preAuth.disconnects.length) {
             const quote = insideDoWhen ? `\\"` : `"`;
-            subquery.push(`WITH ${[...withVars, _varName, relVarName].join(", ")}`);
+            subquery.push(`WITH ${[...withVars, variableName, relVarName].join(", ")}`);
             subquery.push(
                 `CALL apoc.util.validate(NOT (${preAuth.disconnects.join(
                     " AND "
@@ -156,18 +157,21 @@ function createDisconnectAndParams({
             params = { ...params, ...preAuth.params };
         }
 
-        /*
-        Replace with subclauses https://neo4j.com/developer/kb/conditional-cypher-execution/
-        https://neo4j.slack.com/archives/C02PUHA7C/p1603458561099100
-        */
-        subquery.push(`FOREACH(_ IN CASE WHEN ${_varName} IS NULL THEN [] ELSE [1] END | `);
-        subquery.push(`DELETE ${_varName}_rel`);
-        subquery.push(`)`); // close FOREACH
+        subquery.push("CALL {");
+        // Trick to avoid execution on null values
+        subquery.push(`\tWITH ${variableName}, ${variableName}_rel`);
+        subquery.push(`\tWITH collect(${variableName}) as ${variableName}, ${variableName}_rel`);
+        subquery.push(`\tUNWIND ${variableName} as x`);
+        subquery.push(`\tDELETE ${variableName}_rel`);
+        subquery.push(`\tRETURN count(*) AS _`); // Avoids CANNOT END WITH DETACH DELETE ERROR
+        subquery.push(`}`);
 
         // TODO - relationship validation - Blocking, if this were to be enforced it would stop someone from 'reconnecting'
 
         if (disconnect.disconnect) {
-            const disconnects = Array.isArray(disconnect.disconnect) ? disconnect.disconnect : [disconnect.disconnect];
+            const disconnects: Array<any> = Array.isArray(disconnect.disconnect)
+                ? disconnect.disconnect
+                : [disconnect.disconnect];
 
             disconnects.forEach((c, i) => {
                 const reduced = Object.entries(c)
@@ -204,11 +208,11 @@ function createDisconnectAndParams({
 
                             newRefNodes.forEach((newRefNode) => {
                                 const recurse = createDisconnectAndParams({
-                                    withVars: [...withVars, _varName],
+                                    withVars: [...withVars, variableName],
                                     value: relField.union ? v[newRefNode.name] : v,
-                                    varName: `${_varName}_${k}${relField.union ? `_${newRefNode.name}` : ""}`,
+                                    varName: `${variableName}_${k}${relField.union ? `_${newRefNode.name}` : ""}`,
                                     relationField: relField,
-                                    parentVar: _varName,
+                                    parentVar: variableName,
                                     context,
                                     refNodes: [newRefNode],
                                     parentNode: relatedNode,
@@ -254,11 +258,11 @@ function createDisconnectAndParams({
 
                                 newRefNodes.forEach((newRefNode) => {
                                     const recurse = createDisconnectAndParams({
-                                        withVars: [...withVars, _varName],
+                                        withVars: [...withVars, variableName],
                                         value: relField.union ? v[newRefNode.name] : v,
-                                        varName: `${_varName}_${k}${relField.union ? `_${newRefNode.name}` : ""}`,
+                                        varName: `${variableName}_${k}${relField.union ? `_${newRefNode.name}` : ""}`,
                                         relationField: relField,
-                                        parentVar: _varName,
+                                        parentVar: variableName,
                                         context,
                                         refNodes: [newRefNode],
                                         parentNode: relatedNode,
@@ -298,7 +302,7 @@ function createDisconnectAndParams({
                     escapeQuotes: Boolean(insideDoWhen),
                     skipRoles: true,
                     skipIsAuthenticated: true,
-                    bind: { parentNode: node, varName: _varName, chainStr: `${_varName}${node.name}${i}_bind` },
+                    bind: { parentNode: node, varName: variableName, chainStr: `${variableName}${node.name}${i}_bind` },
                 });
 
                 if (!str) {
@@ -315,7 +319,7 @@ function createDisconnectAndParams({
 
         if (postAuth.disconnects.length) {
             const quote = insideDoWhen ? `\\"` : `"`;
-            subquery.push(`WITH ${[...withVars, _varName].join(", ")}`);
+            subquery.push(`WITH ${[...withVars, variableName].join(", ")}`);
             subquery.push(
                 `CALL apoc.util.validate(NOT (${postAuth.disconnects.join(
                     " AND "
@@ -324,12 +328,12 @@ function createDisconnectAndParams({
             params = { ...params, ...postAuth.params };
         }
 
-        subquery.push("RETURN count(*) AS _");
+        subquery.push(`RETURN count(*) AS disconnect_${varName}_${relatedNode.name}`);
 
         return { subquery: subquery.join("\n"), params };
     }
 
-    function reducer(res: Res, disconnect: { where: any; disconnect: any }, index): Res {
+    function reducer(res: Res, disconnect: { where: any; disconnect: any }, index: number): Res {
         if (parentNode.auth) {
             const whereAuth = createAuthAndParams({
                 operations: "DISCONNECT",
@@ -356,7 +360,7 @@ function createDisconnectAndParams({
                     res.params = { ...res.params, ...subquery.params };
                 }
             });
-            res.disconnects.push(subqueries.join("\nUNION\n"));
+            res.disconnects.push(subqueries.join("\n}\nCALL {\n\t"));
         } else {
             const subquery = createSubqueryContents(refNodes[0], disconnect, index);
             res.disconnects.push(subquery.subquery);

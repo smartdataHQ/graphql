@@ -19,10 +19,10 @@
 
 import createAggregateWhereAndParams from "../../create-aggregate-where-and-params";
 import type { Context, RelationField } from "../../../types";
-import * as CypherBuilder from "../../cypher-builder/CypherBuilder";
+import Cypher from "@neo4j/cypher-builder";
 import type { Node, Relationship } from "../../../classes";
 
-/** Translates an atomic aggregation operation (e.g. "this0 <= $param0") */
+/** Translates an atomic aggregation operation */
 export function createAggregateOperation({
     relationField,
     context,
@@ -32,13 +32,13 @@ export function createAggregateOperation({
     relationField: RelationField;
     context: Context;
     value: any;
-    parentNode: CypherBuilder.Node;
-}): CypherBuilder.RawCypher {
+    parentNode: Cypher.Node;
+}): Cypher.RawCypher {
     const refNode = context.nodes.find((x) => x.name === relationField.typeMeta.name) as Node;
     const relationship = context.relationships.find((x) => x.properties === relationField.properties) as Relationship;
 
-    const aggregateStatement = new CypherBuilder.RawCypher((env: CypherBuilder.Environment) => {
-        const varName = env.getVariableId(parentNode);
+    const aggregateStatement = new Cypher.RawCypher((env: Cypher.Environment) => {
+        const varName = env.getReferenceId(parentNode);
 
         // TODO: use cypher builder instead of rawCypher
         const aggregateWhereAndParams = createAggregateWhereAndParams({

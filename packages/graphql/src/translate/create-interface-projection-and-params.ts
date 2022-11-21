@@ -19,220 +19,200 @@
 
 import type { ResolveTree } from "graphql-parse-resolve-info";
 import { asArray, removeDuplicates } from "../utils/utils";
-import { AUTH_FORBIDDEN_ERROR } from "../constants";
-import type { ConnectionField, Context, InterfaceWhereArg, RelationField } from "../types";
-import filterInterfaceNodes from "../utils/filter-interface-nodes";
-import createConnectionAndParams from "./connection/create-connection-and-params";
-import createAuthAndParams from "./create-auth-and-params";
-import createProjectionAndParams from "./create-projection-and-params";
-import { getRelationshipDirectionStr } from "../utils/get-relationship-direction";
-import createElementWhereAndParams from "./where/create-element-where-and-params";
+import type { Context, GraphQLOptionsArg, InterfaceWhereArg, RelationField } from "../types";
+import { filterInterfaceNodes } from "../utils/filter-interface-nodes";
+import { createAuthPredicates } from "./create-auth-and-params";
 
-function createInterfaceProjectionAndParams({
+import createProjectionAndParams from "./create-projection-and-params";
+import { getRelationshipDirection } from "../utils/get-relationship-direction";
+import Cypher from "@neo4j/cypher-builder";
+import { addSortAndLimitOptionsToClause } from "./projection/subquery/add-sort-and-limit-to-clause";
+import type { Node } from "../classes";
+import { createWherePredicate } from "./where/create-where-predicate";
+import { AUTH_FORBIDDEN_ERROR } from "../constants";
+
+export default function createInterfaceProjectionAndParams({
     resolveTree,
     field,
     context,
     nodeVariable,
-    parameterPrefix,
     withVars,
 }: {
     resolveTree: ResolveTree;
     field: RelationField;
     context: Context;
     nodeVariable: string;
-    parameterPrefix?: string;
     withVars?: string[];
-}): { cypher: string; params: Record<string, any> } {
-    let globalParams = {};
-    let params: { args?: any } = {};
+}): Cypher.Clause {
     const fullWithVars = removeDuplicates([...asArray(withVars), nodeVariable]);
-    const relTypeStr = `[:${field.type}]`;
-
-    const { inStr, outStr } = getRelationshipDirectionStr(field, resolveTree.args);
-
+    const parentNode = new Cypher.NamedNode(nodeVariable);
     const whereInput = resolveTree.args.where as InterfaceWhereArg;
+    const returnVariable = `${nodeVariable}_${field.fieldName}`;
 
     const referenceNodes = context.nodes.filter(
-        (x) => field.interface?.implementations?.includes(x.name) && filterInterfaceNodes({ node: x, whereInput })
+        (node) => field.interface?.implementations?.includes(node.name) && filterInterfaceNodes({ node, whereInput })
     );
 
-    let whereArgs: { _on?: any; [str: string]: any } = {};
-
     const subqueries = referenceNodes.map((refNode) => {
-        const param = `${nodeVariable}_${refNode.name}`;
-        const subquery = [
-            `WITH ${fullWithVars.join(", ")}`,
-            `MATCH (${nodeVariable})${inStr}${relTypeStr}${outStr}(${param}:${refNode.name})`,
-        ];
-
-        const allowAndParams = createAuthAndParams({
-            operations: "READ",
-            entity: refNode,
-            context,
-            allow: {
-                parentNode: refNode,
-                varName: param,
-            },
-        });
-        if (allowAndParams[0]) {
-            globalParams = { ...globalParams, ...allowAndParams[1] };
-            subquery.push(`CALL apoc.util.validate(NOT (${allowAndParams[0]}), "${AUTH_FORBIDDEN_ERROR}", [0])`);
-        }
-
-        const whereStrs: string[] = [];
-
-        if (resolveTree.args.where) {
-            // For root filters
-            const rootNodeWhereAndParams = createElementWhereAndParams({
-                whereInput: {
-                    ...Object.entries(whereInput).reduce((args, [k, v]) => {
-                        if (k !== "_on") {
-                            // If this where key is also inside _on for this implementation, use the one in _on instead
-                            if (whereInput?._on?.[refNode.name]?.[k]) {
-                                return args;
-                            }
-                            return { ...args, [k]: v };
-                        }
-
-                        return args;
-                    }, {}),
-                },
-                context,
-                element: refNode,
-                varName: param,
-                parameterPrefix: `${parameterPrefix ? `${parameterPrefix}.` : `${nodeVariable}_`}${
-                    resolveTree.alias
-                }.args.where`,
-            });
-            if (rootNodeWhereAndParams[0]) {
-                whereStrs.push(rootNodeWhereAndParams[0]);
-                whereArgs = { ...whereArgs, ...rootNodeWhereAndParams[1] };
-            }
-
-            // For _on filters
-            if (whereInput?._on?.[refNode.name]) {
-                const onTypeNodeWhereAndParams = createElementWhereAndParams({
-                    whereInput: {
-                        ...Object.entries(whereInput).reduce((args, [k, v]) => {
-                            if (k !== "_on") {
-                                return { ...args, [k]: v };
-                            }
-
-                            if (Object.prototype.hasOwnProperty.call(v, refNode.name)) {
-                                return { ...args, ...v[refNode.name] };
-                            }
-
-                            return args;
-                        }, {}),
-                    },
-                    context,
-                    element: refNode,
-                    varName: param,
-                    parameterPrefix: `${parameterPrefix ? `${parameterPrefix}.` : `${nodeVariable}_`}${
-                        resolveTree.alias
-                    }.args.where._on.${refNode.name}`,
-                });
-                if (onTypeNodeWhereAndParams[0]) {
-                    whereStrs.push(onTypeNodeWhereAndParams[0]);
-                    if (whereArgs._on) {
-                        whereArgs._on[refNode.name] = onTypeNodeWhereAndParams[1];
-                    } else {
-                        whereArgs._on = { [refNode.name]: onTypeNodeWhereAndParams[1] };
-                    }
-                }
-            }
-        }
-
-        const whereAuth = createAuthAndParams({
-            operations: "READ",
-            entity: refNode,
-            context,
-            where: { varName: param, node: refNode },
-        });
-        if (whereAuth[0]) {
-            whereStrs.push(whereAuth[0]);
-            globalParams = { ...globalParams, ...whereAuth[1] };
-        }
-
-        if (whereStrs.length) {
-            subquery.push(`WHERE ${whereStrs.join(" AND ")}`);
-        }
-
-        const recurse = createProjectionAndParams({
+        return createInterfaceSubquery({
+            refNode,
+            nodeVariable,
+            field,
             resolveTree,
-            node: refNode,
             context,
-            varName: param,
-            literalElements: true,
-            resolveType: true,
+            parentNode,
+            fullWithVars,
         });
-
-        if (recurse[2]?.connectionFields?.length) {
-            recurse[2].connectionFields.forEach((connectionResolveTree) => {
-                const connectionField = refNode.connectionFields.find(
-                    (x) => x.fieldName === connectionResolveTree.name
-                ) as ConnectionField;
-                const connection = createConnectionAndParams({
-                    resolveTree: connectionResolveTree,
-                    field: connectionField,
-                    context,
-                    nodeVariable: param,
-                });
-                subquery.push(connection[0]);
-                params = { ...params, ...connection[1] };
-            });
-        }
-
-        if (recurse[2]?.interfaceFields?.length) {
-            const prevRelationshipFields: string[] = [];
-            recurse[2].interfaceFields.forEach((interfaceResolveTree) => {
-                const relationshipField = refNode.relationFields.find(
-                    (x) => x.fieldName === interfaceResolveTree.name
-                ) as RelationField;
-                const interfaceProjection = createInterfaceProjectionAndParams({
-                    resolveTree: interfaceResolveTree,
-                    field: relationshipField,
-                    context,
-                    nodeVariable: param,
-                    withVars: prevRelationshipFields,
-                });
-                prevRelationshipFields.push(relationshipField.dbPropertyName || relationshipField.fieldName);
-                subquery.push(interfaceProjection.cypher);
-                params = { ...params, ...interfaceProjection.params };
-            });
-        }
-
-        subquery.push(`RETURN ${recurse[0]} AS ${field.fieldName}`);
-        globalParams = {
-            ...globalParams,
-            ...recurse[1],
-        };
-
-        return subquery.join("\n");
     });
-    let interfaceProjection = [`WITH ${fullWithVars.join(", ")}`, "CALL {", subqueries.join("\nUNION\n"), "}"];
 
-    if (field.typeMeta.array) {
-        interfaceProjection = [
-            `WITH ${fullWithVars.join(", ")}`,
-            "CALL {",
-            ...interfaceProjection,
-            `RETURN collect(${field.fieldName}) AS ${field.fieldName}`,
-            "}",
-        ];
+    const optionsInput = resolveTree.args.options as GraphQLOptionsArg | undefined;
+    let withClause: Cypher.With | undefined;
+    if (optionsInput) {
+        withClause = new Cypher.With("*");
+        const target = new Cypher.NamedNode(returnVariable);
+        addSortAndLimitOptionsToClause({
+            optionsInput,
+            projectionClause: withClause,
+            target,
+        });
     }
 
-    if (Object.keys(whereArgs).length) {
-        params.args = { where: whereArgs };
-    }
+    const unionClause = new Cypher.Union(...subqueries);
+    const call = new Cypher.Call(unionClause);
 
-    return {
-        cypher: interfaceProjection.join("\n"),
-        params: {
-            ...globalParams,
-            ...(Object.keys(params).length ? { [`${nodeVariable}_${resolveTree.alias}`]: params } : {}),
-        },
-    };
+    return new Cypher.RawCypher((env) => {
+        const subqueryStr = call.getCypher(env);
+
+        const withStr = withClause ? `${withClause.getCypher(env)}\n` : "";
+
+        let interfaceProjection = [`WITH *`, subqueryStr];
+        if (field.typeMeta.array) {
+            interfaceProjection = [
+                `WITH *`,
+                "CALL {",
+                ...interfaceProjection,
+                `${withStr}RETURN collect(${returnVariable}) AS ${returnVariable}`,
+                "}",
+            ];
+        }
+
+        return interfaceProjection.join("\n");
+    });
 }
 
-export default createInterfaceProjectionAndParams;
+function createInterfaceSubquery({
+    refNode,
+    nodeVariable,
+    field,
+    resolveTree,
+    context,
+    parentNode,
+    fullWithVars,
+}: {
+    refNode: Node;
+    nodeVariable: string;
+    field: RelationField;
+    resolveTree: ResolveTree;
+    context: Context;
+    parentNode: Cypher.Node;
+    fullWithVars: string[];
+}): Cypher.Clause {
+    const whereInput = resolveTree.args.where as InterfaceWhereArg;
+
+    const param = `${nodeVariable}_${refNode.name}`;
+    const relatedNode = new Cypher.NamedNode(param, {
+        labels: [refNode.name], // NOTE: should this be labels?
+    });
+
+    const relationshipRef = new Cypher.Relationship({
+        source: parentNode,
+        target: relatedNode,
+        type: field.type,
+    });
+
+    const direction = getRelationshipDirection(field, resolveTree.args);
+    const pattern = relationshipRef.pattern({
+        source: {
+            labels: false,
+        },
+        directed: direction !== "undirected",
+    });
+
+    if (direction === "IN") pattern.reverse();
+
+    const withClause = new Cypher.With(...fullWithVars.map((f) => new Cypher.NamedVariable(f)));
+    const matchQuery = new Cypher.Match(pattern);
+
+    const authAllowPredicate = createAuthPredicates({
+        entity: refNode,
+        operations: "READ",
+        allow: {
+            parentNode: refNode,
+            varName: relatedNode,
+        },
+        context,
+    });
+    if (authAllowPredicate) {
+        const apocValidateClause = new Cypher.apoc.ValidatePredicate(
+            Cypher.not(authAllowPredicate),
+            AUTH_FORBIDDEN_ERROR
+        );
+        matchQuery.where(apocValidateClause);
+    }
+
+    if (resolveTree.args.where) {
+        const whereInput2 = {
+            ...Object.entries(whereInput).reduce((args, [k, v]) => {
+                if (k !== "_on") {
+                    return { ...args, [k]: v };
+                }
+
+                return args;
+            }, {}),
+            ...(whereInput?._on?.[refNode.name] || {}),
+        };
+
+        const wherePredicate = createWherePredicate({
+            whereInput: whereInput2,
+            context,
+            targetElement: relatedNode,
+            element: refNode,
+        });
+
+        if (wherePredicate) {
+            matchQuery.where(wherePredicate);
+        }
+    }
+
+    const whereAuthPredicate = createAuthPredicates({
+        entity: refNode,
+        operations: "READ",
+        where: {
+            node: refNode,
+            varName: relatedNode,
+        },
+        context,
+    });
+    if (whereAuthPredicate) {
+        matchQuery.where(whereAuthPredicate);
+    }
+
+    const {
+        projection: projectionStr,
+        subqueries: projectionSubQueries,
+        subqueriesBeforeSort,
+    } = createProjectionAndParams({
+        resolveTree,
+        node: refNode,
+        context,
+        varName: param,
+        literalElements: true,
+        resolveType: true,
+    });
+
+    const projectionSubqueryClause = Cypher.concat(...subqueriesBeforeSort, ...projectionSubQueries);
+
+    const returnClause = new Cypher.Return([new Cypher.RawCypher(projectionStr), `${nodeVariable}_${field.fieldName}`]);
+
+    return Cypher.concat(withClause, matchQuery, projectionSubqueryClause, returnClause);
+}

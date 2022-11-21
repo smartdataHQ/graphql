@@ -10,6 +10,7 @@ const CompressionPlugin = require("compression-webpack-plugin");
 const WebpackNotifierPlugin = require("webpack-notifier");
 const { DefinePlugin } = require("webpack");
 const packageJson = require("./package.json");
+const Dotenv = require('dotenv-webpack');
 
 module.exports = {
     mode: "none",
@@ -59,16 +60,17 @@ module.exports = {
         path: path.resolve(__dirname, "dist"),
     },
     plugins: [
+        new Dotenv({ systemvars: true }),
         new DefinePlugin({
-            'process.env.VERSION': JSON.stringify(packageJson.version),
-            'process.env.NEO4J_GRAPHQL_VERSION': JSON.stringify(packageJson.dependencies["@neo4j/graphql"]),
+            "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
+            "process.env.VERSION": JSON.stringify(packageJson.version),
+            "process.env.NEO4J_GRAPHQL_VERSION": JSON.stringify(packageJson.dependencies["@neo4j/graphql"]),
         }),
         new CopyWebpackPlugin({
             patterns: ["public"],
         }),
         new HtmlWebpackPlugin({
             template: path.join(__dirname, "src", "index.html"),
-            favicon: path.join(__dirname, "public", "favicon.svg"),
             ...(process.env.NODE_ENV === "test" ? { inject: "body" } : {}),
         }),
         new ForkTsCheckerWebpackPlugin({

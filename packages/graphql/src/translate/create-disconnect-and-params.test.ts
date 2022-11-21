@@ -20,9 +20,9 @@
 import createDisconnectAndParams from "./create-disconnect-and-params";
 import type { Neo4jGraphQL } from "../classes";
 import type { Context } from "../types";
-import { trimmer } from "../utils";
 import { NodeBuilder } from "../../tests/utils/builders/node-builder";
 import { RelationshipQueryDirectionOption } from "../constants";
+import { Neo4jDatabaseInfo } from "../classes/Neo4jDatabaseInfo";
 
 describe("createDisconnectAndParams", () => {
     test("should return the correct disconnect", () => {
@@ -79,7 +79,12 @@ describe("createDisconnectAndParams", () => {
         };
 
         // @ts-ignore
-        const context: Context = { neoSchema, nodes: [node], relationships: [] };
+        const context: Context = {
+            neoSchema,
+            nodes: [node],
+            relationships: [],
+            neo4jDatabaseInfo: new Neo4jDatabaseInfo("4.4.0"),
+        };
 
         const result = createDisconnectAndParams({
             withVars: ["this"],
@@ -98,28 +103,36 @@ describe("createDisconnectAndParams", () => {
             parameterPrefix: "this", // TODO
         });
 
-        expect(trimmer(result[0])).toEqual(
-            trimmer(`
-            WITH this
-            CALL {
-                WITH this
-                OPTIONAL MATCH (this)-[this0_rel:SIMILAR]->(this0:Movie)
-                WHERE this0.title = $this[0].where.node.title
-                FOREACH(_ IN CASE WHEN this0 IS NULL THEN [] ELSE [1] END | DELETE this0_rel )
-
-                WITH this, this0
-                CALL {
-                    WITH this, this0
-                    OPTIONAL MATCH (this0)-[this0_similarMovies0_rel:SIMILAR]->(this0_similarMovies0:Movie)
-                    WHERE this0_similarMovies0.title = $this[0].disconnect.similarMovies[0].where.node.title
-                    FOREACH(_ IN CASE WHEN this0_similarMovies0 IS NULL THEN [] ELSE [1] END | DELETE this0_similarMovies0_rel )
-                    RETURN count(*) AS _
-                }
-
-                RETURN count(*) AS _
-            }
-            `)
-        );
+        expect(result[0]).toMatchInlineSnapshot(`
+"WITH this
+CALL {
+WITH this
+OPTIONAL MATCH (this)-[this0_rel:SIMILAR]->(this0:Movie)
+WHERE this0.title = $this0_where_Movieparam0
+CALL {
+	WITH this0, this0_rel
+	WITH collect(this0) as this0, this0_rel
+	UNWIND this0 as x
+	DELETE this0_rel
+	RETURN count(*) AS _
+}
+WITH this, this0
+CALL {
+WITH this, this0
+OPTIONAL MATCH (this0)-[this0_similarMovies0_rel:SIMILAR]->(this0_similarMovies0:Movie)
+WHERE this0_similarMovies0.title = $this0_disconnect_similarMovies0_where_Movieparam0
+CALL {
+	WITH this0_similarMovies0, this0_similarMovies0_rel
+	WITH collect(this0_similarMovies0) as this0_similarMovies0, this0_similarMovies0_rel
+	UNWIND this0_similarMovies0 as x
+	DELETE this0_similarMovies0_rel
+	RETURN count(*) AS _
+}
+RETURN count(*) AS disconnect_this0_similarMovies_Movie
+}
+RETURN count(*) AS disconnect_this_Movie
+}"
+`);
 
         expect(result[1]).toMatchObject({});
     });
