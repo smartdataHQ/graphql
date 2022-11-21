@@ -89,7 +89,7 @@ describe("https://github.com/neo4j/graphql/issues/915", () => {
 
         databaseName = generate({ readable: true, charset: "alphabetic" });
 
-        const cypher = `CREATE DATABASE ${databaseName}`;
+        const cypher = `CREATE DATABASE ${databaseName} WAIT`;
         const session = driver.session();
         try {
             await session.run(cypher);

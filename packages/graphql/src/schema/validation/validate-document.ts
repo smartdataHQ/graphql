@@ -29,6 +29,7 @@ import { GraphQLSchema, extendSchema, validateSchema, specifiedDirectives, Kind 
 import pluralize from "pluralize";
 import * as scalars from "../../graphql/scalars";
 import * as directives from "../../graphql/directives";
+import { SortDirection } from "../../graphql/enums/SortDirection";
 import { Point } from "../../graphql/objects/Point";
 import { CartesianPoint } from "../../graphql/objects/CartesianPoint";
 import { PointInput } from "../../graphql/input-objects/PointInput";
@@ -168,6 +169,7 @@ function validateDocument(document: DocumentNode): void {
             PointDistance,
             CartesianPointInput,
             CartesianPointDistance,
+            SortDirection,
         ],
     });
 

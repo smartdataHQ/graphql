@@ -19,7 +19,14 @@
 
 import type { ExecuteResult } from "../../utils/execute";
 import { serializeNeo4jValue } from "../../utils/neo4j-serializers";
-import type { EventMeta, Neo4jGraphQLSubscriptionsPlugin, SubscriptionsEvent } from "../../types";
+import type {
+    EventMeta,
+    Neo4jGraphQLSubscriptionsPlugin,
+    NodeSubscriptionMeta,
+    RelationshipSubscriptionMeta,
+    SubscriptionsEvent,
+} from "../../types";
+import { filterTruthy } from "../../utils/utils";
 
 export function publishEventsToPlugin(
     executeResult: ExecuteResult,
@@ -27,25 +34,82 @@ export function publishEventsToPlugin(
 ): void {
     if (plugin) {
         const metadata: EventMeta[] = executeResult.records[0]?.meta || [];
+        const serializedEvents = filterTruthy(metadata.map(serializeEvent));
 
-        for (const rawEvent of metadata) {
-            const subscriptionsEvent = serializeEvent(rawEvent);
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            plugin.publish(subscriptionsEvent);
+        const serializedEventsWithoutDuplicates = removeDuplicateEvents("delete", serializedEvents);
+        for (const subscriptionsEvent of serializedEventsWithoutDuplicates) {
+            try {
+                const publishPromise = plugin.publish(subscriptionsEvent); // Not using await to avoid blocking
+                if (publishPromise) {
+                    publishPromise.catch((error) => {
+                        console.warn(error);
+                    });
+                }
+            } catch (error) {
+                console.warn(error);
+            }
         }
     }
 }
 
-function serializeEvent(event: EventMeta): SubscriptionsEvent {
-    return {
-        id: serializeNeo4jValue(event.id),
-        timestamp: serializeNeo4jValue(event.timestamp),
-        event: event.event,
-        properties: {
+function removeDuplicateEvents(
+    eventType: "create" | "update" | "delete",
+    events: SubscriptionsEvent[]
+): SubscriptionsEvent[] {
+    const result = [] as SubscriptionsEvent[];
+    const resultIds = new Set<number>();
+    for (const event of events) {
+        if (event.event != eventType) {
+            result.push(event);
+        } else {
+            if (!resultIds.has(event.id)) {
+                resultIds.add(event.id);
+                result.push(event);
+            }
+        }
+    }
+    return result;
+}
+
+function isNodeSubscriptionMeta(event: EventMeta): event is NodeSubscriptionMeta {
+    return ["create", "update", "delete"].includes(event.event);
+}
+function isRelationshipSubscriptionMeta(event: EventMeta): event is RelationshipSubscriptionMeta {
+    return ["connect", "disconnect"].includes(event.event);
+}
+function serializeEvent(event: EventMeta): SubscriptionsEvent | undefined {
+    let properties = {},
+        extraFields = {};
+    if (isNodeSubscriptionMeta(event)) {
+        extraFields = {
+            typename: event.typename,
+        };
+        properties = {
             old: serializeProperties(event.properties.old),
             new: serializeProperties(event.properties.new),
-        },
-        typename: event.typename,
+        };
+    } else if (isRelationshipSubscriptionMeta(event)) {
+        properties = {
+            from: serializeProperties(event.properties.from),
+            to: serializeProperties(event.properties.to),
+            relationship: serializeProperties(event.properties.relationship),
+        };
+        extraFields = {
+            id_from: serializeNeo4jValue(event.id_from),
+            id_to: serializeNeo4jValue(event.id_to),
+            fromTypename: serializeNeo4jValue(event.fromTypename),
+            toTypename: serializeNeo4jValue(event.toTypename),
+            relationshipName: event.relationshipName,
+        };
+    } else {
+        return undefined;
+    }
+    return {
+        id: serializeNeo4jValue(event.id),
+        ...extraFields,
+        timestamp: serializeNeo4jValue(event.timestamp),
+        event: event.event,
+        properties,
     } as SubscriptionsEvent; // Casting here because ts is not smart enough to get the difference between create|update|delete
 }
 

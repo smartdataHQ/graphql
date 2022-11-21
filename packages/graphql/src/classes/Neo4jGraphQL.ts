@@ -43,6 +43,9 @@ import { wrapResolver, wrapSubscription } from "../schema/resolvers/wrapper";
 import { defaultFieldResolver } from "../schema/resolvers/field/defaultField";
 import { asArray } from "../utils/utils";
 import { DEBUG_ALL } from "../constants";
+import { getNeo4jDatabaseInfo, Neo4jDatabaseInfo } from "./Neo4jDatabaseInfo";
+import { Executor, ExecutorConstructorParam } from "./Executor";
+import type { Entity } from "../schema-model/Entity";
 
 export interface Neo4jGraphQLJWT {
     jwksEndpoint?: string;
@@ -76,7 +79,12 @@ class Neo4jGraphQL {
     private _nodes?: Node[];
     private _relationships?: Relationship[];
     private plugins?: Neo4jGraphQLPlugins;
+
+    private entities?: Map<string, Entity>;
+
     private schema?: Promise<GraphQLSchema>;
+
+    private dbInfo?: Neo4jDatabaseInfo;
 
     constructor(input: Neo4jGraphQLConstructor) {
         const { config = {}, driver, plugins, features, ...schemaDefinition } = input;
@@ -123,7 +131,11 @@ class Neo4jGraphQL {
             throw new Error("neo4j-driver Driver missing");
         }
 
-        return checkNeo4jCompat({ driver, driverConfig });
+        if (!this.dbInfo) {
+            this.dbInfo = await this.getNeo4jDatabaseInfo(driver, driverConfig);
+        }
+
+        return checkNeo4jCompat({ driver, driverConfig, dbInfo: this.dbInfo });
     }
 
     public async assertIndexesAndConstraints(
@@ -142,7 +154,17 @@ class Neo4jGraphQL {
             throw new Error("neo4j-driver Driver missing");
         }
 
-        await assertIndexesAndConstraints({ driver, driverConfig, nodes: this.nodes, options: input.options });
+        if (!this.dbInfo) {
+            this.dbInfo = await this.getNeo4jDatabaseInfo(driver, driverConfig);
+        }
+
+        await assertIndexesAndConstraints({
+            driver,
+            driverConfig,
+            nodes: this.nodes,
+            options: input.options,
+            dbInfo: this.dbInfo,
+        });
     }
 
     private addDefaultFieldResolvers(schema: GraphQLSchema): GraphQLSchema {
@@ -155,7 +177,7 @@ class Neo4jGraphQL {
         return schema;
     }
 
-    private checkEnableDebug = (): void => {
+    private checkEnableDebug(): void {
         if (this.config.enableDebug === true || this.config.enableDebug === false) {
             if (this.config.enableDebug) {
                 Debug.enable(DEBUG_ALL);
@@ -163,15 +185,35 @@ class Neo4jGraphQL {
                 Debug.disable();
             }
         }
-    };
+    }
 
-    private wrapResolvers(resolvers: IResolvers, { schema }: { schema: GraphQLSchema }) {
+    private async getNeo4jDatabaseInfo(driver: Driver, driverConfig?: DriverConfig): Promise<Neo4jDatabaseInfo> {
+        const executorConstructorParam: ExecutorConstructorParam = {
+            executionContext: driver,
+        };
+
+        if (driverConfig?.database) {
+            executorConstructorParam.database = driverConfig?.database;
+        }
+
+        if (driverConfig?.bookmarks) {
+            executorConstructorParam.bookmarks = driverConfig?.bookmarks;
+        }
+
+        return getNeo4jDatabaseInfo(new Executor(executorConstructorParam));
+    }
+
+    private wrapResolvers(resolvers: IResolvers) {
+        if (!this.entities) {
+            throw new Error("this.entities is undefined");
+        }
+
         const wrapResolverArgs = {
             driver: this.driver,
             config: this.config,
             nodes: this.nodes,
             relationships: this.relationships,
-            schema,
+            entities: this.entities,
             plugins: this.plugins,
         };
 
@@ -186,35 +228,35 @@ class Neo4jGraphQL {
         return composeResolvers(mergedResolvers, resolversComposition);
     }
 
-    private addWrappedResolversToSchema(resolverlessSchema: GraphQLSchema, resolvers: IResolvers): GraphQLSchema {
-        const schema = addResolversToSchema(resolverlessSchema, resolvers);
-        return this.addDefaultFieldResolvers(schema);
-    }
-
     private generateSchema(): Promise<GraphQLSchema> {
         return new Promise((resolve) => {
-            const { nodes, relationships, typeDefs, resolvers } = makeAugmentedSchema(this.schemaDefinition.typeDefs, {
-                features: this.features,
-                enableRegex: this.config?.enableRegex,
-                skipValidateTypeDefs: this.config?.skipValidateTypeDefs,
-                generateSubscriptions: Boolean(this.plugins?.subscriptions),
-                callbacks: this.config.callbacks,
-            });
+            const { nodes, relationships, entities, typeDefs, resolvers } = makeAugmentedSchema(
+                this.schemaDefinition.typeDefs,
+                {
+                    features: this.features,
+                    enableRegex: this.config?.enableRegex,
+                    skipValidateTypeDefs: this.config?.skipValidateTypeDefs,
+                    generateSubscriptions: Boolean(this.plugins?.subscriptions),
+                    callbacks: this.config.callbacks,
+                    userCustomResolvers: this.schemaDefinition.resolvers,
+                }
+            );
 
             this._nodes = nodes;
             this._relationships = relationships;
 
-            const resolverlessSchema = makeExecutableSchema({
+            this.entities = entities;
+
+            // Wrap the generated and custom resolvers, which adds a context including the schema to every request
+            const wrappedResolvers = this.wrapResolvers(resolvers);
+
+            const schema = makeExecutableSchema({
                 ...this.schemaDefinition,
                 typeDefs,
+                resolvers: wrappedResolvers,
             });
 
-            // Wrap the generated resolvers, which adds a context including the schema to every request
-            const wrappedResolvers = this.wrapResolvers(resolvers, { schema: resolverlessSchema });
-
-            const schema = this.addWrappedResolversToSchema(resolverlessSchema, wrappedResolvers);
-
-            resolve(schema);
+            resolve(this.addDefaultFieldResolvers(schema));
         });
     }
 

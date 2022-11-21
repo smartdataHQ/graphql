@@ -93,7 +93,7 @@ describe("root-connections", () => {
     test("should return an array of edges and the correct totalCount", async () => {
         const session = await neo4j.getSession();
 
-        const dummyAircrafts = [...Array(20).keys()].map((x) => ({
+        const dummyAircrafts = [...Array(20).keys()].map(() => ({
             id: generate({ charset: "alphabetic " }),
             name: generate({ charset: "alphabetic" }),
         }));
@@ -141,10 +141,12 @@ describe("root-connections", () => {
             expect(result.errors).toBeFalsy();
             expect(result?.data?.[aircraftType.operations.connection]).toEqual({
                 totalCount: 20,
-                edges: dummyAircrafts.map((node) => ({
-                    cursor: expect.any(String),
-                    node,
-                })),
+                edges: expect.toIncludeAllMembers(
+                    dummyAircrafts.map((node) => ({
+                        cursor: expect.any(String),
+                        node,
+                    }))
+                ),
             });
         } finally {
             await session.run(`
@@ -158,7 +160,7 @@ describe("root-connections", () => {
     test("should correctly produce edges when sort and limit are used", async () => {
         const session = await neo4j.getSession();
 
-        const dummyAircrafts = [...Array(20).keys()].map((x) => ({
+        const dummyAircrafts = [...Array(20).keys()].map(() => ({
             id: generate({ charset: "alphabetic", readable: true }),
             name: generate({ charset: "alphabetic", readable: true }),
         }));
@@ -237,7 +239,7 @@ describe("root-connections", () => {
     test("should calculate the correct cursors when the first argument is provided as a parameter", async () => {
         const session = await neo4j.getSession();
 
-        const dummyAircrafts = [...Array(20).keys()].map((x) => ({
+        const dummyAircrafts = [...Array(20).keys()].map(() => ({
             id: generate({ charset: "alphabetic", readable: true }),
             name: generate({ charset: "alphabetic", readable: true }),
         }));

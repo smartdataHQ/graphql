@@ -33,6 +33,7 @@ describe("sort", () => {
     let neo4j: Neo4j;
     let schema: GraphQLSchema;
     let session: Session;
+    let bookmarks: string[];
 
     const movieType = generateUniqueType("Movie");
     const seriesType = generateUniqueType("Series");
@@ -145,6 +146,8 @@ describe("sort", () => {
             { movies, series, actors }
         );
 
+        bookmarks = session2.lastBookmark();
+
         await session2.close();
     });
 
@@ -170,7 +173,7 @@ describe("sort", () => {
                     schema,
                     source,
                     variableValues: { movieIds: movies.map(({ id }) => id), direction },
-                    contextValue: neo4j.getContextValuesWithBookmarks(session.lastBookmark()),
+                    contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
                 });
 
             describe("with field in selection set", () => {
@@ -289,7 +292,7 @@ describe("sort", () => {
                 graphql({
                     schema,
                     source,
-                    contextValue: neo4j.getContextValues(),
+                    contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
                     variableValues: { movieIds: movies.map(({ id }) => id), direction },
                 });
 
@@ -429,7 +432,7 @@ describe("sort", () => {
             graphql({
                 schema,
                 source,
-                contextValue: neo4j.getContextValues(),
+                contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
                 variableValues: { movieId: movies[1].id, actorIds: actors.map(({ id }) => id), direction },
             });
 
@@ -447,6 +450,7 @@ describe("sort", () => {
                                 }
                             `;
                 const gqlResultByType = gqlResultByTypeFromSource(queryWithName);
+
                 test("ASC", async () => {
                     const gqlResult = await gqlResultByType("ASC");
 
@@ -490,6 +494,7 @@ describe("sort", () => {
                                 }
                             `;
                 const gqlResultByType = gqlResultByTypeFromSource(queryWithName);
+
                 test("ASC", async () => {
                     const gqlResult = await gqlResultByType("ASC");
 
@@ -595,6 +600,7 @@ describe("sort", () => {
                     expect(gqlMovie.actors[1].id).toBe(actors[0].id);
                     expect(gqlMovie.actors[1].totalScreenTime).toBe(3);
                 });
+
                 test("DESC", async () => {
                     const gqlResult = await gqlResultByType("DESC");
 
@@ -706,6 +712,29 @@ describe("sort", () => {
                 });
             });
         });
+
+        it("sort with skip and limit on relationship", async () => {
+            const query = `
+                query {
+                    ${movieType.plural} {
+                        actors(options: { limit: 1, offset: 1, sort: { name: ASC } }) {
+                            name
+                        }
+                    }
+                }
+            `;
+
+            const gqlResult = await graphql({
+                schema,
+                source: query,
+                contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
+            });
+
+            expect(gqlResult.errors).toBeUndefined();
+            expect((gqlResult.data as any)[movieType.plural]).toEqual(
+                expect.toIncludeSameMembers([{ actors: [] }, { actors: [{ name: actors[1].name }] }])
+            );
+        });
     });
 
     describe("on interface relationship", () => {
@@ -714,7 +743,7 @@ describe("sort", () => {
                 graphql({
                     schema,
                     source,
-                    contextValue: neo4j.getContextValues(),
+                    contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
                     variableValues: { actorId: actors[0].id, direction },
                 });
             describe("with field in selection set", () => {
@@ -861,7 +890,7 @@ describe("sort", () => {
             graphql({
                 schema,
                 source,
-                contextValue: neo4j.getContextValues(),
+                contextValue: neo4j.getContextValuesWithBookmarks(bookmarks),
                 variableValues: { actorId: actors[0].id, direction },
             });
         describe("node", () => {

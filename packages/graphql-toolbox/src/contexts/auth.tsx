@@ -17,13 +17,25 @@
  * limitations under the License.
  */
 
-import React, { Dispatch, useState, SetStateAction, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import * as neo4j from "neo4j-driver";
-import { encrypt, decrypt } from "../utils/utils";
-import { LOCAL_STATE_LOGIN, LOCAL_STATE_SELECTED_DATABASE_NAME, VERIFY_CONNECTION_INTERVAL_MS } from "../constants";
-import { getDatabases, resolveNeo4jDesktopLoginPayload, resolveSelectedDatabaseName } from "./utils";
+import {
+    LOCAL_STATE_CONNECTION_URL,
+    LOCAL_STATE_CONNECTION_USERNAME,
+    LOCAL_STATE_HIDE_INTROSPECTION_PROMPT,
+    LOCAL_STATE_LOGIN,
+    LOCAL_STATE_SELECTED_DATABASE_NAME,
+    VERIFY_CONNECTION_INTERVAL_MS,
+} from "../constants";
+import {
+    checkDatabaseHasData,
+    getDatabases,
+    resolveNeo4jDesktopLoginPayload,
+    resolveSelectedDatabaseName,
+} from "./utils";
 import { LoginPayload, Neo4jDatabase } from "../types";
 import { Storage } from "../utils/storage";
+import { getURLProtocolFromText } from "../utils/utils";
 
 interface LoginOptions {
     username: string;
@@ -39,17 +51,87 @@ export interface State {
     isNeo4jDesktop?: boolean;
     databases?: Neo4jDatabase[];
     selectedDatabaseName?: string;
+    showIntrospectionPrompt?: boolean;
     login: (options: LoginOptions) => Promise<void>;
     logout: () => void;
     setSelectedDatabaseName: (databaseName: string) => void;
+    setShowIntrospectionPrompt: (nextState: boolean) => void;
 }
 
 export const AuthContext = React.createContext({} as State);
 
 export function AuthProvider(props: any) {
-    let value: State | undefined;
-    let setValue: Dispatch<SetStateAction<State>>;
     let intervalId: number;
+
+    const [value, setValue] = useState<State>({
+        login: async (options: LoginOptions) => {
+            const auth = neo4j.auth.basic(options.username, options.password);
+            const protocol = getURLProtocolFromText(options.url);
+            // Manually set the encryption to off if it's not specified in the Connection URI to avoid implicit encryption in https domain
+            const driver = protocol.includes("+s")
+                ? neo4j.driver(options.url, auth)
+                : neo4j.driver(options.url, auth, { encrypted: "ENCRYPTION_OFF" });
+
+            await driver.verifyConnectivity();
+
+            const databases = await getDatabases(driver);
+            const selectedDatabaseName = resolveSelectedDatabaseName(databases || []);
+
+            let isShowIntrospectionPrompt = false;
+            const storedShowIntrospectionPrompt = Storage.retrieve(LOCAL_STATE_HIDE_INTROSPECTION_PROMPT);
+            if (storedShowIntrospectionPrompt !== "true") {
+                isShowIntrospectionPrompt = await checkDatabaseHasData(driver, selectedDatabaseName);
+                Storage.store(LOCAL_STATE_HIDE_INTROSPECTION_PROMPT, "true");
+            }
+
+            Storage.store(LOCAL_STATE_CONNECTION_USERNAME, options.username);
+            Storage.store(LOCAL_STATE_CONNECTION_URL, options.url);
+
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            intervalId = window.setInterval(async () => {
+                await checkForDatabaseUpdates(driver, setValue);
+            }, VERIFY_CONNECTION_INTERVAL_MS);
+
+            setValue((values) => ({
+                ...values,
+                driver,
+                username: options.username,
+                connectUrl: options.url,
+                isConnected: true,
+                showIntrospectionPrompt: isShowIntrospectionPrompt,
+                databases,
+                selectedDatabaseName,
+            }));
+        },
+        logout: () => {
+            Storage.remove(LOCAL_STATE_LOGIN);
+            Storage.remove(LOCAL_STATE_CONNECTION_USERNAME);
+            Storage.remove(LOCAL_STATE_CONNECTION_URL);
+            Storage.remove(LOCAL_STATE_HIDE_INTROSPECTION_PROMPT);
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+
+            setValue((values) => ({
+                ...values,
+                driver: undefined,
+                connectUrl: undefined,
+                isConnected: false,
+                showIntrospectionPrompt: false,
+            }));
+        },
+        setSelectedDatabaseName: (databaseName: string) => {
+            Storage.store(LOCAL_STATE_SELECTED_DATABASE_NAME, databaseName);
+            setValue((values) => ({ ...values, selectedDatabaseName: databaseName }));
+        },
+        setShowIntrospectionPrompt: (nextState: boolean) => {
+            setValue((values) => ({ ...values, showIntrospectionPrompt: nextState }));
+        },
+    });
+
+    useEffect(() => {
+        resolveNeo4jDesktopLoginPayload().then(processLoginPayload.bind(null, value)).catch(console.error);
+    }, []);
 
     const checkForDatabaseUpdates = async (driver: neo4j.Driver, setValue: any) => {
         try {
@@ -65,77 +147,27 @@ export function AuthProvider(props: any) {
         let loginPayload: LoginPayload | null = null;
         if (loginPayloadFromDesktop) {
             loginPayload = loginPayloadFromDesktop;
-            setValue((v) => ({ ...v, isNeo4jDesktop: true }));
+            setValue((values) => ({ ...values, isNeo4jDesktop: true }));
         } else {
-            const storedEncryptedPayload = Storage.retrieve(LOCAL_STATE_LOGIN);
-            if (storedEncryptedPayload && typeof storedEncryptedPayload === "string") {
-                const { encryptedPayload, hashKey } = JSON.parse(storedEncryptedPayload as string);
-                loginPayload = decrypt(encryptedPayload, hashKey) as unknown as LoginPayload;
+            const storedConnectionUsername = Storage.retrieve(LOCAL_STATE_CONNECTION_USERNAME);
+            const storedConnectionUrl = Storage.retrieve(LOCAL_STATE_CONNECTION_URL);
+            if (storedConnectionUrl && storedConnectionUsername) {
+                loginPayload = {
+                    username: storedConnectionUsername,
+                    url: storedConnectionUrl,
+                };
             }
         }
-        if (loginPayload && value && !value.driver) {
+        if (loginPayload?.password && value && !value.driver) {
             value
                 .login({
                     username: loginPayload.username,
                     password: loginPayload.password,
                     url: loginPayload.url,
                 })
-                .catch(() => {});
+                .catch((error) => console.log(error));
         }
     };
 
-    [value, setValue] = useState<State>({
-        login: async (options: LoginOptions) => {
-            const auth = neo4j.auth.basic(options.username, options.password);
-            const protocol = new URL(options.url).protocol;
-            // Manually set the encryption to off if it's not specified in the Connection URI to avoid implicit encryption in https domain
-            const driver = protocol.includes("+s")
-                ? neo4j.driver(options.url, auth)
-                : neo4j.driver(options.url, auth, { encrypted: "ENCRYPTION_OFF" });
-
-            await driver.verifyConnectivity();
-
-            const databases = await getDatabases(driver);
-            const selectedDatabaseName = resolveSelectedDatabaseName(databases || []);
-
-            const encodedPayload = encrypt({
-                username: options.username,
-                password: options.password,
-                url: options.url,
-            } as LoginPayload);
-            Storage.storeJSON(LOCAL_STATE_LOGIN, encodedPayload);
-
-            intervalId = window.setInterval(() => {
-                checkForDatabaseUpdates(driver, setValue);
-            }, VERIFY_CONNECTION_INTERVAL_MS);
-
-            setValue((v) => ({
-                ...v,
-                driver,
-                username: options.username,
-                connectUrl: options.url,
-                isConnected: true,
-                databases,
-                selectedDatabaseName,
-            }));
-        },
-        logout: () => {
-            Storage.remove(LOCAL_STATE_LOGIN);
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
-
-            setValue((v) => ({ ...v, driver: undefined, connectUrl: undefined, isConnected: false }));
-        },
-        setSelectedDatabaseName: (databaseName: string) => {
-            Storage.store(LOCAL_STATE_SELECTED_DATABASE_NAME, databaseName);
-            setValue((v) => ({ ...v, selectedDatabaseName: databaseName }));
-        },
-    });
-
-    useEffect(() => {
-        resolveNeo4jDesktopLoginPayload().then(processLoginPayload.bind(null, value)).catch(console.error);
-    }, []);
-
-    return <AuthContext.Provider value={value as State}>{props.children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={value}>{props.children}</AuthContext.Provider>;
 }

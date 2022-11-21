@@ -17,8 +17,9 @@
  * limitations under the License.
  */
 
+import type { Neo4jDatabaseInfo } from "../../../classes/Neo4jDatabaseInfo";
 import type { PointField } from "../../../types";
-import * as CypherBuilder from "../../cypher-builder/CypherBuilder";
+import Cypher from "@neo4j/cypher-builder";
 
 /** Translates a point comparison operation */
 export function createPointComparisonOperation({
@@ -26,58 +27,64 @@ export function createPointComparisonOperation({
     propertyRefOrCoalesce,
     param,
     pointField,
+    neo4jDatabaseInfo,
 }: {
     operator: string | undefined;
-    propertyRefOrCoalesce: CypherBuilder.PropertyRef | CypherBuilder.Function;
-    param: CypherBuilder.Param;
+    propertyRefOrCoalesce: Cypher.PropertyRef | Cypher.Function;
+    param: Cypher.Param;
     pointField: PointField;
-}): CypherBuilder.ComparisonOp {
-    const pointDistance = createPointDistanceExpression(propertyRefOrCoalesce, param);
+    neo4jDatabaseInfo: Neo4jDatabaseInfo;
+}): Cypher.ComparisonOp {
+    const pointDistance = createPointDistanceExpression(propertyRefOrCoalesce, param, neo4jDatabaseInfo);
     const distanceRef = param.property("distance");
 
     switch (operator || "EQ") {
         case "LT":
-            return CypherBuilder.lt(pointDistance, distanceRef);
+            return Cypher.lt(pointDistance, distanceRef);
         case "LTE":
-            return CypherBuilder.lte(pointDistance, distanceRef);
+            return Cypher.lte(pointDistance, distanceRef);
         case "GT":
-            return CypherBuilder.gt(pointDistance, distanceRef);
+            return Cypher.gt(pointDistance, distanceRef);
         case "GTE":
-            return CypherBuilder.gte(pointDistance, distanceRef);
+            return Cypher.gte(pointDistance, distanceRef);
         case "DISTANCE":
-            return CypherBuilder.eq(pointDistance, distanceRef);
+            return Cypher.eq(pointDistance, distanceRef);
         case "NOT":
         case "EQ": {
             if (pointField?.typeMeta.array) {
                 const pointList = createPointListComprehension(param);
-                return CypherBuilder.eq(propertyRefOrCoalesce, pointList);
+                return Cypher.eq(propertyRefOrCoalesce, pointList);
             }
 
-            return CypherBuilder.eq(propertyRefOrCoalesce, CypherBuilder.point(param));
+            return Cypher.eq(propertyRefOrCoalesce, Cypher.point(param));
         }
         case "IN":
         case "NOT_IN": {
             const pointList = createPointListComprehension(param);
-            return CypherBuilder.in(propertyRefOrCoalesce, pointList);
+            return Cypher.in(propertyRefOrCoalesce, pointList);
         }
         case "INCLUDES":
         case "NOT_INCLUDES":
-            return CypherBuilder.in(CypherBuilder.point(param), propertyRefOrCoalesce);
+            return Cypher.in(Cypher.point(param), propertyRefOrCoalesce);
         default:
             throw new Error(`Invalid operator ${operator}`);
     }
 }
 
-function createPointListComprehension(param: CypherBuilder.Param): CypherBuilder.ListComprehension {
-    const comprehensionVar = new CypherBuilder.Variable();
-    const mapPoint = CypherBuilder.point(comprehensionVar);
-    return new CypherBuilder.ListComprehension(comprehensionVar, param, undefined, mapPoint);
+function createPointListComprehension(param: Cypher.Param): Cypher.ListComprehension {
+    const comprehensionVar = new Cypher.Variable();
+    const mapPoint = Cypher.point(comprehensionVar);
+    return new Cypher.ListComprehension(comprehensionVar, param).map(mapPoint);
 }
 
 function createPointDistanceExpression(
-    property: CypherBuilder.Expr,
-    param: CypherBuilder.Param
-): CypherBuilder.Function {
+    property: Cypher.Expr,
+    param: Cypher.Param,
+    neo4jDatabaseInfo: Neo4jDatabaseInfo
+): Cypher.Function {
     const nestedPointRef = param.property("point");
-    return CypherBuilder.distance(property, CypherBuilder.point(nestedPointRef));
+    if (neo4jDatabaseInfo.gte("4.4")) {
+        return Cypher.pointDistance(property, Cypher.point(nestedPointRef));
+    }
+    return Cypher.distance(property, Cypher.point(nestedPointRef));
 }

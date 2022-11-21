@@ -17,9 +17,10 @@
  * limitations under the License.
  */
 
-import { test, describe } from "./utils/pagemodel";
+import * as base from "@playwright/test";
+import { test } from "./utils/pagemodel";
 
-describe("drawer", () => {
+base.test.describe("drawer", () => {
     const typeDefs = `
         type Movie {
             name: String!
@@ -31,7 +32,7 @@ describe("drawer", () => {
         helpDrawerPage,
         schemaEditorPage,
     }) => {
-        await loginPage.login();
+        await loginPage.loginDismissIntrospection();
 
         await helpDrawerPage.openHelpDrawer();
         await helpDrawerPage.displaysSchemaViewContent();
@@ -44,5 +45,19 @@ describe("drawer", () => {
         await helpDrawerPage.displaysSchemaDocumentation();
         await helpDrawerPage.displaysKeybindingsInEditorView();
         await helpDrawerPage.closeHelpDrawer();
+    });
+
+    test("should show the schema docs next to the Explorer component", async ({
+        loginPage,
+        editorPage,
+        schemaEditorPage,
+    }) => {
+        await loginPage.loginDismissIntrospection();
+
+        await schemaEditorPage.setTypeDefs(typeDefs);
+        await schemaEditorPage.buildSchema();
+
+        await editorPage.showSchemaDocs();
+        await editorPage.hideSchemaDocs();
     });
 });

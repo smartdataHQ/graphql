@@ -17,10 +17,12 @@
  * limitations under the License.
  */
 
+import Cypher from "@neo4j/cypher-builder";
 import type { ResolveTree } from "graphql-parse-resolve-info";
+import { getOrCreateCypherVariable } from "../../utils/get-or-create-cypher-variable";
 import type { PointField } from "../../../types";
 
-function createPointElement({
+export default function createPointElement({
     resolveTree,
     field,
     variable,
@@ -29,35 +31,76 @@ function createPointElement({
     field: PointField;
     variable: string;
 }): string {
+    const expression = createPointExpression({ resolveTree, field, variable });
+
+    const cypherClause = new Cypher.RawCypher((env) => {
+        return expression.getCypher(env);
+    });
+    const { cypher } = cypherClause.build("p_");
+    return `${resolveTree.alias}: (${cypher})`;
+}
+
+export function createPointExpression({
+    resolveTree,
+    field,
+    variable,
+}: {
+    resolveTree: ResolveTree;
+    field: PointField;
+    variable: string | Cypher.Variable;
+}): Cypher.Expr {
     const isArray = field.typeMeta.array;
 
     const { crs, ...point } = resolveTree.fieldsByTypeName[field.typeMeta.name];
-    const fields: string[] = [];
     const dbFieldName = field.dbPropertyName || resolveTree.name;
+
+    const CypherVariable = getOrCreateCypherVariable(variable);
 
     // Sadly need to select the whole point object due to the risk of height/z
     // being selected on a 2D point, to which the database will throw an error
-    if (point) {
-        fields.push(isArray ? "point:p" : `point: ${variable}.${dbFieldName}`);
+    let caseResult: Cypher.Expr;
+    if (isArray) {
+        const projectionVar = new Cypher.Variable();
+
+        const projectionMap = createPointProjectionMap({
+            variableOrProperty: projectionVar,
+            crs,
+            point,
+        });
+
+        caseResult = new Cypher.ListComprehension(projectionVar)
+            .in(CypherVariable.property(dbFieldName))
+            .map(projectionMap);
+    } else {
+        caseResult = createPointProjectionMap({
+            variableOrProperty: CypherVariable.property(dbFieldName),
+            crs,
+            point,
+        });
     }
 
-    if (crs) {
-        fields.push(isArray ? "crs: p.crs" : `crs: ${variable}.${dbFieldName}.crs`);
-    }
-
-    const projection = isArray
-        ? `[p in ${variable}.${dbFieldName} | { ${fields.join(", ")} }]`
-        : `{ ${fields.join(", ")} }`;
-
-    const cypher = [
-        "apoc.cypher.runFirstColumn(",
-        `'RETURN\nCASE\n\tWHEN ${variable}.${dbFieldName} IS NOT NULL THEN ${projection}\n\tELSE NULL\nEND AS result',`,
-        `{ ${variable}: ${variable} },`,
-        "false",
-        ")",
-    ];
-
-    return `${resolveTree.alias}: ${cypher.join("")}`;
+    return new Cypher.Case()
+        .when(Cypher.isNotNull(CypherVariable.property(dbFieldName)))
+        .then(caseResult)
+        .else(Cypher.Null);
 }
 
-export default createPointElement;
+function createPointProjectionMap({
+    variableOrProperty,
+    crs,
+    point,
+}: {
+    variableOrProperty: Cypher.Variable | Cypher.PropertyRef;
+    crs: unknown;
+    point: unknown;
+}): Cypher.Map {
+    const projectionMap = new Cypher.Map();
+    if (point) {
+        projectionMap.set({ point: variableOrProperty });
+    }
+    if (crs) {
+        projectionMap.set({ crs: variableOrProperty.property("crs") });
+    }
+
+    return projectionMap;
+}

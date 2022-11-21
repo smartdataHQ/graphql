@@ -20,6 +20,7 @@
 import { gql } from "apollo-server";
 import { graphql } from "graphql";
 import type { Driver, Session } from "neo4j-driver";
+import { cleanNodes } from "../../../utils/clean-nodes";
 import { Neo4jGraphQL } from "../../../../src";
 import type { UniqueType } from "../../../utils/graphql-types";
 import { generateUniqueType } from "../../../utils/graphql-types";
@@ -73,6 +74,7 @@ describe("Subscriptions update", () => {
     });
 
     afterEach(async () => {
+        await cleanNodes(session, [typeActor, typeMovie]);
         await session.close();
     });
 
@@ -139,9 +141,8 @@ describe("Subscriptions update", () => {
 
         expect(gqlResult.errors).toBeUndefined();
 
-        expect(plugin.eventList).toHaveLength(2);
         expect(plugin.eventList).toEqual(
-            expect.arrayContaining([
+            expect.toIncludeSameMembers([
                 {
                     id: expect.any(Number),
                     timestamp: expect.any(Number),
@@ -211,12 +212,11 @@ describe("Subscriptions update", () => {
         expect(gqlResult.errors).toBeUndefined();
 
         expect(gqlResult.data[typeMovie.operations.update]).toEqual({
-            [typeMovie.plural]: [{ id: "1" }, { id: "2" }],
+            [typeMovie.plural]: expect.toIncludeSameMembers([{ id: "1" }, { id: "2" }]),
         });
 
-        expect(plugin.eventList).toHaveLength(3);
         expect(plugin.eventList).toEqual(
-            expect.arrayContaining([
+            expect.toIncludeSameMembers([
                 {
                     id: expect.any(Number),
                     timestamp: expect.any(Number),
@@ -303,9 +303,8 @@ describe("Subscriptions update", () => {
 
         expect(gqlResult.errors).toBeUndefined();
 
-        expect(plugin.eventList).toHaveLength(5);
         expect(plugin.eventList).toEqual(
-            expect.arrayContaining([
+            expect.toIncludeSameMembers([
                 {
                     event: "update",
                     id: expect.any(Number),
@@ -393,7 +392,6 @@ describe("Subscriptions update", () => {
             [typeMovie.plural]: [{ id: "1", actors: [{ name: "Arnold" }] }],
         });
 
-        expect(plugin.eventList).toHaveLength(2);
         expect(plugin.eventList).toEqual(
             expect.arrayContaining([
                 {
@@ -462,9 +460,8 @@ describe("Subscriptions update", () => {
             [typeMovie.plural]: [{ id: "1", actors: [] }],
         });
 
-        expect(plugin.eventList).toHaveLength(2);
         expect(plugin.eventList).toEqual(
-            expect.arrayContaining([
+            expect.toIncludeSameMembers([
                 {
                     id: expect.any(Number),
                     timestamp: expect.any(Number),
@@ -536,7 +533,6 @@ describe("Subscriptions update", () => {
             [typeMovie.plural]: [{ id: "1", actors: [{ name: "New Arnold" }] }],
         });
 
-        expect(plugin.eventList).toHaveLength(3);
         expect(plugin.eventList).toEqual(
             expect.arrayContaining([
                 {
@@ -638,7 +634,6 @@ describe("Subscriptions update", () => {
             [typeMovie.plural]: [{ id: "1", actors: [{ name: "New Arnold" }] }],
         });
 
-        expect(plugin.eventList).toHaveLength(5);
         expect(plugin.eventList).toEqual(
             expect.arrayContaining([
                 {

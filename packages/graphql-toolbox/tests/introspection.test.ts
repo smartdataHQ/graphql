@@ -17,16 +17,16 @@
  * limitations under the License.
  */
 
-import { toGraphQLTypeDefs } from "@neo4j/introspector";
 import * as neo4j from "neo4j-driver";
-import { test, describe, expect, beforeAll, afterAll } from "./utils/pagemodel";
+import * as base from "@playwright/test";
+import { test, expect, beforeAll, afterAll } from "./utils/pagemodel";
 
 const { NEO_USER = "admin", NEO_PASSWORD = "password", NEO_URL = "neo4j://localhost:7687/neo4j" } = process.env;
 
-describe("introspection", () => {
+base.test.describe("introspection", () => {
     let driver: neo4j.Driver;
 
-    beforeAll(async () => {
+    beforeAll(() => {
         driver = neo4j.driver(NEO_URL, neo4j.auth.basic(NEO_USER, NEO_PASSWORD));
     });
 
@@ -35,34 +35,23 @@ describe("introspection", () => {
     });
 
     test("should introspect database and output result", async ({ page, loginPage, schemaEditorPage }) => {
-        await loginPage.login();
+        await loginPage.loginDismissIntrospection();
 
-        const sessionFactory = () => driver?.session({ defaultAccessMode: neo4j.session.WRITE }) as neo4j.Session;
-        const session = await sessionFactory();
+        const sessionFactory = () => driver?.session({ defaultAccessMode: neo4j.session.WRITE });
+        const session = sessionFactory();
 
         try {
             await session.run(`
-                CALL {
-                    MATCH (a)
-                    DETACH DELETE a
-                    RETURN "x"
-                }
-                CALL {
-                    CREATE (:Movie { id: randomUUID() })
-                    RETURN "y"
-                }
-                RETURN "z"
+                CREATE (m:MyMovie { id: randomUUID() }) RETURN m
             `);
         } finally {
             await session.close();
         }
 
         await schemaEditorPage.introspect();
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
         const generatedTypeDefs = await schemaEditorPage.getTypeDefs();
 
-        const actualTypeDefs = await toGraphQLTypeDefs(sessionFactory);
-
-        expect(generatedTypeDefs).toEqual(actualTypeDefs);
+        expect(generatedTypeDefs).toContain(`type MyMovie`);
     });
 });

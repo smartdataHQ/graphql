@@ -22,14 +22,16 @@ import type { GraphQLResolveInfo, GraphQLSchema } from "graphql";
 import { print } from "graphql";
 import type { Driver } from "neo4j-driver";
 import type { Neo4jGraphQLConfig, Node, Relationship } from "../../classes";
-import { Neo4jGraphQLAuthenticationError } from "../../classes";
+import { getNeo4jDatabaseInfo, Neo4jDatabaseInfo } from "../../classes/Neo4jDatabaseInfo";
 import { Executor } from "../../classes/Executor";
 import type { ExecutorConstructorParam } from "../../classes/Executor";
 import { DEBUG_GRAPHQL } from "../../constants";
 import createAuthParam from "../../translate/create-auth-param";
-import type { Context, Neo4jGraphQLPlugins, JwtPayload, Neo4jGraphQLAuthPlugin } from "../../types";
+import type { Context, Neo4jGraphQLPlugins } from "../../types";
 import { getToken, parseBearerToken } from "../../utils/get-token";
 import type { SubscriptionConnectionContext, SubscriptionContext } from "./subscriptions/types";
+import { decodeToken, verifyGlobalAuthentication } from "./wrapper-utils";
+import type { Entity } from "../../schema-model/Entity";
 
 const debug = Debug(DEBUG_GRAPHQL);
 
@@ -38,12 +40,15 @@ type WrapResolverArguments = {
     config: Neo4jGraphQLConfig;
     nodes: Node[];
     relationships: Relationship[];
-    schema: GraphQLSchema;
+    entities: Map<string, Entity>;
     plugins?: Neo4jGraphQLPlugins;
+    dbInfo?: Neo4jDatabaseInfo;
 };
 
+let neo4jDatabaseInfo: Neo4jDatabaseInfo;
+
 export const wrapResolver =
-    ({ driver, config, nodes, relationships, schema, plugins }: WrapResolverArguments) =>
+    ({ driver, config, nodes, relationships, entities, plugins, dbInfo }: WrapResolverArguments) =>
     (next) =>
     async (root, args, context: Context, info: GraphQLResolveInfo) => {
         const { driverConfig } = config;
@@ -76,7 +81,7 @@ export const wrapResolver =
 
         context.nodes = nodes;
         context.relationships = relationships;
-        context.schema = schema;
+        context.entities = entities;
         context.plugins = plugins || {};
         context.subscriptionsEnabled = Boolean(context.plugins?.subscriptions);
         context.callbacks = config.callbacks;
@@ -85,6 +90,8 @@ export const wrapResolver =
             const token = getToken(context);
             context.jwt = await decodeToken(token, context.plugins.auth);
         }
+
+        verifyGlobalAuthentication(context, context.plugins?.auth);
 
         context.auth = createAuthParam({ context });
 
@@ -106,6 +113,16 @@ export const wrapResolver =
         }
 
         context.executor = new Executor(executorConstructorParam);
+
+        if (!context.neo4jDatabaseInfo?.version) {
+            if (dbInfo) {
+                neo4jDatabaseInfo = dbInfo;
+            }
+            if (!neo4jDatabaseInfo?.version) {
+                neo4jDatabaseInfo = await getNeo4jDatabaseInfo(context.executor);
+            }
+            context.neo4jDatabaseInfo = neo4jDatabaseInfo;
+        }
 
         return next(root, args, context, info);
     };
@@ -131,19 +148,7 @@ export const wrapSubscription =
             subscriptionContext.jwt = await decodeToken(token, plugins.auth);
         }
 
+        verifyGlobalAuthentication(subscriptionContext, plugins.auth);
+
         return next(root, args, { ...context, ...contextParams, ...subscriptionContext }, info);
     };
-
-async function decodeToken(
-    token: string | undefined,
-    plugin: Neo4jGraphQLAuthPlugin | undefined
-): Promise<JwtPayload | undefined> {
-    if (token && plugin) {
-        const jwt = await plugin.decode<JwtPayload>(token);
-        if (typeof jwt === "string") {
-            throw new Neo4jGraphQLAuthenticationError("JWT payload cannot be a string");
-        }
-        return jwt;
-    }
-    return undefined;
-}

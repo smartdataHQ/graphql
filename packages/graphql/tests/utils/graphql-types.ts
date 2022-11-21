@@ -17,8 +17,6 @@
  * limitations under the License.
  */
 
-// This file should only be used for tests. As randomstring is a devDependecy
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { generate } from "randomstring";
 import pluralize from "pluralize";
 import camelcase from "camelcase";
@@ -34,35 +32,41 @@ type UniqueTypeOperations = {
         created: string;
         updated: string;
         deleted: string;
+        connected: string;
+        disconnected: string;
         payload: {
             created: string;
             updated: string;
             deleted: string;
+            connected: string;
+            disconnected: string;
         };
-    };
-};
-
-type UniqueTypeFieldNames = {
-    subscriptions: {
-        created: string;
-        updated: string;
-        deleted: string;
     };
 };
 
 export class UniqueType {
     public readonly name: string;
 
-    constructor(baseName: string) {
-        this.name = `${generate({
-            length: 8,
-            charset: "alphabetic",
-            readable: true,
-        })}${baseName}`;
+    constructor(baseName: string, uniqueName: boolean) {
+        if (uniqueName) {
+            this.name = `${generate({
+                length: 8,
+                charset: "alphabetic",
+                readable: true,
+            })}${baseName}`;
+        } else {
+            this.name = baseName;
+        }
     }
 
     public get plural(): string {
         return pluralize(camelcase(this.name));
+    }
+
+    public get singular(): string {
+        const singular = camelcase(this.name);
+
+        return `${this.leadingUnderscores(this.name)}${singular}`;
     }
 
     public get operations(): UniqueTypeOperations {
@@ -80,10 +84,14 @@ export class UniqueType {
                 created: `${singular}Created`,
                 updated: `${singular}Updated`,
                 deleted: `${singular}Deleted`,
+                connected: `${singular}Connected`,
+                disconnected: `${singular}Disconnected`,
                 payload: {
                     created: `created${pascalCaseSingular}`,
                     updated: `updated${pascalCaseSingular}`,
                     deleted: `deleted${pascalCaseSingular}`,
+                    connected: `connected${pascalCaseSingular}`,
+                    disconnected: `disconnected${pascalCaseSingular}`,
                 },
             },
         };
@@ -92,8 +100,14 @@ export class UniqueType {
     public toString(): string {
         return this.name;
     }
+
+    private leadingUnderscores(name: string): string {
+        const re = /^(_+).+/;
+        const match = re.exec(name);
+        return match?.[1] || "";
+    }
 }
 
-export function generateUniqueType(baseName: string): UniqueType {
-    return new UniqueType(baseName);
+export function generateUniqueType(baseName: string, unique = true): UniqueType {
+    return new UniqueType(baseName, unique);
 }

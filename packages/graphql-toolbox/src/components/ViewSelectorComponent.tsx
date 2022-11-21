@@ -19,6 +19,7 @@
 
 import { Fragment, useContext } from "react";
 import { ViewSelector, ViewSelectorItem } from "@neo4j-ndl/react";
+import tokens from "@neo4j-ndl/base/lib/tokens/js/tokens";
 import { Screen, ScreenContext } from "../contexts/screen";
 
 interface Props {
@@ -42,15 +43,22 @@ export const ViewSelectorComponent = ({ isEditorDisabled = true, elementKey, onC
         <ViewSelector
             key={`${elementKey}-selector-main`}
             style={{
-                backgroundColor: "#FFF",
+                backgroundColor: tokens.colors.neutral[10],
             }}
             onChange={handleOnScreenChange}
             selected={screen.view.toString()}
+            size="small"
         >
             <Fragment key={`${elementKey}-screen-fragment`}>
-                <ViewSelectorItem value={Screen.TYPEDEFS.toString()}>Definition</ViewSelectorItem>
-                <ViewSelectorItem value={Screen.EDITOR.toString()} disabled={isEditorDisabled}>
-                    Editor
+                <ViewSelectorItem data-test-view-selector-type-defs value={Screen.TYPEDEFS.toString()}>
+                    Type definitions
+                </ViewSelectorItem>
+                <ViewSelectorItem
+                    data-test-view-selector-editor
+                    value={Screen.EDITOR.toString()}
+                    disabled={isEditorDisabled}
+                >
+                    Query editor
                 </ViewSelectorItem>
             </Fragment>
         </ViewSelector>

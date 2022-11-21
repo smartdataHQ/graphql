@@ -18,111 +18,47 @@
  */
 
 import type { ResolveTree } from "graphql-parse-resolve-info";
-import { GraphQLUnionType } from "graphql";
 import { mergeDeep } from "@graphql-tools/utils";
+import Cypher from "@neo4j/cypher-builder";
 import type { Node } from "../classes";
-import createWhereAndParams from "./where/create-where-and-params";
-import type { GraphQLOptionsArg, GraphQLSortArg, GraphQLWhereArg, Context, ConnectionField } from "../types";
-import createAuthAndParams from "./create-auth-and-params";
-import { AUTH_FORBIDDEN_ERROR } from "../constants";
+import type { GraphQLOptionsArg, GraphQLWhereArg, Context, RelationField } from "../types";
+import { createAuthAndParams } from "./create-auth-and-params";
 import { createDatetimeElement } from "./projection/elements/create-datetime-element";
 import createPointElement from "./projection/elements/create-point-element";
-// eslint-disable-next-line import/no-cycle
-import createConnectionAndParams from "./connection/create-connection-and-params";
-import { createOffsetLimitStr } from "../schema/pagination";
 import mapToDbProperty from "../utils/map-to-db-property";
 import { createFieldAggregation } from "./field-aggregations/create-field-aggregation";
 import { addGlobalIdField } from "../utils/global-node-projection";
-import { getRelationshipDirectionStr } from "../utils/get-relationship-direction";
+import { getRelationshipDirection } from "../utils/get-relationship-direction";
 import { generateMissingOrAliasedFields, filterFieldsInSelection, generateProjectionField } from "./utils/resolveTree";
 import { removeDuplicates } from "../utils/utils";
+import { createProjectionSubquery } from "./projection/subquery/create-projection-subquery";
+import { collectUnionSubqueriesResults } from "./projection/subquery/collect-union-subqueries-results";
+import createInterfaceProjectionAndParams from "./create-interface-projection-and-params";
+import { createConnectionClause } from "./connection-clause/create-connection-clause";
+import { translateCypherDirectiveProjection } from "./projection/subquery/translate-cypher-directive-projection";
 
 interface Res {
     projection: string[];
     params: any;
     meta: ProjectionMeta;
+    subqueries: Array<Cypher.Clause>;
+    subqueriesBeforeSort: Array<Cypher.Clause>;
 }
 
 export interface ProjectionMeta {
     authValidateStrs?: string[];
-    connectionFields?: ResolveTree[];
-    interfaceFields?: ResolveTree[];
-    cypherSortFields?: { alias: string; apocStr: string }[];
+    cypherSortFields?: string[];
 }
 
-function createNodeWhereAndParams({
-    whereInput,
-    varName,
-    context,
-    node,
-    authValidateStrs,
-    chainStr,
-}: {
-    whereInput?: any;
-    context: Context;
-    node: Node;
-    varName: string;
-    authValidateStrs?: string[];
-    chainStr?: string;
-}): [string, any] {
-    const whereStrs: string[] = [];
-    let params = {};
+export type ProjectionResult = {
+    projection: string;
+    params: Record<string, any>;
+    meta: ProjectionMeta;
+    subqueries: Array<Cypher.Clause>;
+    subqueriesBeforeSort: Array<Cypher.Clause>;
+};
 
-    if (whereInput) {
-        const whereAndParams = createWhereAndParams({
-            context,
-            node,
-            varName,
-            whereInput,
-            chainStr,
-            recursing: true,
-        });
-        if (whereAndParams[0]) {
-            whereStrs.push(whereAndParams[0]);
-            params = { ...params, ...whereAndParams[1] };
-        }
-    }
-
-    const whereAuth = createAuthAndParams({
-        entity: node,
-        operations: "READ",
-        context,
-        where: {
-            varName,
-            chainStr,
-            node,
-        },
-    });
-    if (whereAuth[0]) {
-        whereStrs.push(whereAuth[0]);
-        params = { ...params, ...whereAuth[1] };
-    }
-
-    const preAuth = createAuthAndParams({
-        entity: node,
-        operations: "READ",
-        context,
-        allow: {
-            parentNode: node,
-            varName,
-            chainStr,
-        },
-    });
-    if (preAuth[0]) {
-        whereStrs.push(`apoc.util.validatePredicate(NOT (${preAuth[0]}), "${AUTH_FORBIDDEN_ERROR}", [0])`);
-        params = { ...params, ...preAuth[1] };
-    }
-
-    if (authValidateStrs?.length) {
-        whereStrs.push(
-            `apoc.util.validatePredicate(NOT (${authValidateStrs.join(" AND ")}), "${AUTH_FORBIDDEN_ERROR}", [0])`
-        );
-    }
-
-    return [whereStrs.join(" AND "), params];
-}
-
-function createProjectionAndParams({
+export default function createProjectionAndParams({
     resolveTree,
     node,
     context,
@@ -130,8 +66,6 @@ function createProjectionAndParams({
     varName,
     literalElements,
     resolveType,
-    inRelationshipProjection,
-    isRootConnectionField,
 }: {
     resolveTree: ResolveTree;
     node: Node;
@@ -140,9 +74,7 @@ function createProjectionAndParams({
     varName: string;
     literalElements?: boolean;
     resolveType?: boolean;
-    inRelationshipProjection?: boolean;
-    isRootConnectionField?: boolean;
-}): [string, any, ProjectionMeta | undefined] {
+}): ProjectionResult {
     function reducer(res: Res, field: ResolveTree): Res {
         const alias = field.alias;
         let param = "";
@@ -154,7 +86,6 @@ function createProjectionAndParams({
 
         const whereInput = field.args.where as GraphQLWhereArg;
         const optionsInput = (field.args.options || {}) as GraphQLOptionsArg;
-        const fieldFields = field.fieldsByTypeName;
         const cypherField = node.cypherFields.find((x) => x.fieldName === field.name);
         const relationField = node.relationFields.find((x) => x.fieldName === field.name);
         const connectionField = node.connectionFields.find((x) => x.fieldName === field.name);
@@ -163,6 +94,7 @@ function createProjectionAndParams({
         const authableField = node.authableFields.find((x) => x.fieldName === field.name);
 
         if (authableField) {
+            // TODO: move this to translate-top-level
             if (authableField.auth) {
                 const allowAndParams = createAuthAndParams({
                     entity: authableField,
@@ -181,241 +113,41 @@ function createProjectionAndParams({
         }
 
         if (cypherField) {
-            const projectionAuthStrs: string[] = [];
-            const unionWheres: string[] = [];
-            let projectionStr = "";
-
-            const isArray = cypherField.typeMeta.array;
-
-            const graphqlType = context.schema.getType(cypherField.typeMeta.name);
-
-            const referenceNode = context.nodes.find((x) => x.name === cypherField.typeMeta.name);
-
-            const referenceUnion = graphqlType instanceof GraphQLUnionType ? graphqlType.astNode : undefined;
-
-            if (referenceNode) {
-                const recurse = createProjectionAndParams({
-                    resolveTree: field,
-                    node: referenceNode || node,
-                    context,
-                    varName: `${varName}_${alias}`,
-                    chainStr: param,
-                    isRootConnectionField,
-                    inRelationshipProjection: true,
-                });
-                const [str, p, meta] = recurse;
-                projectionStr = str;
-                res.params = { ...res.params, ...p };
-                if (meta?.authValidateStrs?.length) {
-                    projectionAuthStrs.push(meta.authValidateStrs.join(" AND "));
-                }
-            }
-
-            if (referenceUnion) {
-                const fieldFieldsKeys = Object.keys(fieldFields);
-                const hasMultipleFieldFields = fieldFieldsKeys.length > 1;
-                const hasSingleFieldField = fieldFieldsKeys.length === 1;
-
-                const headStrs: string[] = [];
-                let referencedNodes =
-                    referenceUnion?.types
-                        ?.map((u) => context.nodes.find((n) => n.name === u.name.value))
-                        ?.filter((b) => b !== undefined) || [];
-                if (hasMultipleFieldFields) {
-                    referencedNodes = referencedNodes?.filter((n) => fieldFieldsKeys.includes(n?.name ?? "")) || [];
-                }
-
-                referencedNodes.forEach((refNode) => {
-                    if (refNode) {
-                        const labelsStatements = refNode
-                            .getLabels(context)
-                            .map((label) => `${varName}_${alias}:\`${label}\``);
-                        unionWheres.push(`(${labelsStatements.join("AND")})`);
-
-                        const innerHeadStr: string[] = [
-                            `[ ${varName}_${alias} IN [${varName}_${alias}] WHERE (${labelsStatements.join(" AND ")})`,
-                        ];
-
-                        if (fieldFields[refNode.name]) {
-                            const [str, p, meta] = createProjectionAndParams({
-                                resolveTree: field,
-                                node: refNode,
-                                context,
-                                varName: `${varName}_${alias}`,
-                            });
-
-                            innerHeadStr.push(
-                                [
-                                    `| ${varName}_${alias} { __resolveType: "${refNode.name}", `,
-                                    ...str.replace("{", "").split(""),
-                                ].join("")
-                            );
-                            res.params = { ...res.params, ...p };
-
-                            if (meta?.authValidateStrs?.length) {
-                                projectionAuthStrs.push(meta.authValidateStrs.join(" AND "));
-                            }
-                        } else {
-                            innerHeadStr.push(`| ${varName}_${alias} { __resolveType: "${refNode.name}" } `);
-                        }
-
-                        innerHeadStr.push(`]`);
-
-                        headStrs.push(innerHeadStr.join(" "));
-                    }
-                });
-
-                const isTakeFirstElement: boolean = !isArray || hasSingleFieldField;
-                projectionStr = `${isTakeFirstElement ? "head(" : ""} ${headStrs.join(" + ")} ${
-                    isTakeFirstElement ? ")" : ""
-                }`;
-            }
-
-            const initApocParamsStrs = [
-                ...(context.auth ? ["auth: $auth"] : []),
-                ...(context.cypherParams ? ["cypherParams: $cypherParams"] : []),
-            ];
-
-            // Null default argument values are not passed into the resolve tree therefore these are not being passed to
-            // `apocParams` below causing a runtime error when executing.
-            const nullArgumentValues = cypherField.arguments.reduce(
-                (r, argument) => ({
-                    ...r,
-                    ...{ [argument.name.value]: null },
-                }),
-                {}
-            );
-
-            const apocParams = Object.entries({ ...nullArgumentValues, ...field.args }).reduce(
-                (r: { strs: string[]; params: any }, entry) => {
-                    const argName = `${param}_${entry[0]}`;
-
-                    return {
-                        strs: [...r.strs, `${entry[0]}: $${argName}`],
-                        params: { ...r.params, [argName]: entry[1] },
-                    };
-                },
-                { strs: initApocParamsStrs, params: {} }
-            ) as { strs: string[]; params: any };
-            res.params = {
-                ...res.params,
-                ...apocParams.params,
-                ...(context.cypherParams ? { cypherParams: context.cypherParams } : {}),
-            };
-
-            const expectMultipleValues =
-                (referenceNode || referenceUnion) && cypherField.typeMeta.array ? "true" : "false";
-            const apocWhere = projectionAuthStrs.length
-                ? `WHERE apoc.util.validatePredicate(NOT (${projectionAuthStrs.join(
-                      " AND "
-                  )}), "${AUTH_FORBIDDEN_ERROR}", [0])`
-                : "";
-            const unionWhere = unionWheres.length ? `WHERE ${unionWheres.join(" OR ")}` : "";
-            const apocParamsStr = `{this: ${chainStr || varName}${
-                apocParams.strs.length ? `, ${apocParams.strs.join(", ")}` : ""
-            }}`;
-
-            const isProjectionStrEmpty = projectionStr.trim().length === 0;
-
-            let apocStr = `${
-                !cypherField.isScalar && !cypherField.isEnum ? `${param} IN` : ""
-            } apoc.cypher.runFirstColumn("${cypherField.statement}", ${apocParamsStr}, ${expectMultipleValues})${
-                apocWhere ? ` ${apocWhere}` : ""
-            }${unionWhere ? ` ${unionWhere} ` : ""}${
-                !isProjectionStrEmpty ? ` | ${!referenceUnion ? param : ""} ${projectionStr}` : ""
-            }`;
-            if (param) apocStr = apocStr.split(`$$`).join(`##${param}_`);
-
-            const sortInput = (context.resolveTree.args.sort ??
-                (context.resolveTree.args.options as any)?.sort ??
-                []) as GraphQLSortArg[];
-            const isSortArg = sortInput.find((obj) => Object.keys(obj)[0] === alias);
-            if (isSortArg) {
-                if (!res.meta.cypherSortFields) {
-                    res.meta.cypherSortFields = [];
-                }
-
-                res.meta.cypherSortFields.push({
-                    alias,
-                    apocStr,
-                });
-                if (isRootConnectionField) {
-                    res.projection.push(`${alias}: edges.${alias}`);
-
-                    return res;
-                }
-                if (cypherField.isScalar || cypherField.isEnum) {
-                    res.projection.push(`${alias}: ${alias}`);
-
-                    return res;
-                }
-            }
-
-            if (cypherField.isScalar || cypherField.isEnum) {
-                res.projection.push(`${alias}: ${apocStr}`);
-
-                return res;
-            }
-
-            if (referenceUnion && cypherField.typeMeta.array) {
-                res.projection.push(`${alias}: apoc.coll.flatten([${apocStr}])`);
-
-                return res;
-            }
-
-            if (cypherField.typeMeta.array) {
-                res.projection.push(`${alias}: [${apocStr}]`);
-
-                return res;
-            }
-
-            res.projection.push(`${alias}: head([${apocStr}])`);
-
-            return res;
+            return translateCypherDirectiveProjection({
+                context,
+                cypherField,
+                field,
+                node,
+                alias,
+                param,
+                chainStr: chainStr || varName,
+                res,
+            });
         }
 
         if (relationField) {
-            const referenceNode = context.nodes.find((x) => x.name === relationField.typeMeta.name) as Node;
+            const referenceNode = context.nodes.find((x) => x.name === relationField.typeMeta.name);
 
             if (referenceNode?.queryOptions) {
                 optionsInput.limit = referenceNode.queryOptions.getLimit(optionsInput.limit);
             }
 
-            const nodeMatchStr = `(${chainStr || varName})`;
-            const relTypeStr = `[:${relationField.type}]`;
-            const labels = referenceNode?.getLabelString(context);
-            const nodeOutStr = `(${param}${labels})`;
-            const isArray = relationField.typeMeta.array;
-
-            const { inStr, outStr } = getRelationshipDirectionStr(relationField, field.args);
-
             if (relationField.interface) {
-                if (!res.meta.interfaceFields) {
-                    res.meta.interfaceFields = [];
-                }
+                const interfaceResolveTree = field;
 
-                res.meta.interfaceFields.push(field);
-
-                let offsetLimitStr = "";
-                if (optionsInput) {
-                    offsetLimitStr = createOffsetLimitStr({
-                        offset: optionsInput.offset,
-                        limit: optionsInput.limit,
-                    });
-
-                    if (optionsInput.sort) {
-                        const sorts = optionsInput.sort.reduce(sortReducer, []);
-
-                        res.projection.push(
-                            `${field.alias}: apoc.coll.sortMulti(${field.alias}, [${sorts.join(
-                                ", "
-                            )}])${offsetLimitStr}`
-                        );
-                        return res;
-                    }
-                }
-
-                res.projection.push(`${field.alias}: ${field.name}${offsetLimitStr}`);
+                const prevRelationshipFields: string[] = [];
+                const relationshipField = node.relationFields.find(
+                    (x) => x.fieldName === interfaceResolveTree.name
+                ) as RelationField;
+                const interfaceProjection = createInterfaceProjectionAndParams({
+                    resolveTree: interfaceResolveTree,
+                    field: relationshipField,
+                    context,
+                    nodeVariable: varName,
+                    withVars: prevRelationshipFields,
+                });
+                res.subqueries.push(interfaceProjection);
+                res.projection.push(`${field.alias}: ${varName}_${field.name}`);
 
                 return res;
             }
@@ -427,143 +159,98 @@ function createProjectionAndParams({
                         (!field.args.where || Object.prototype.hasOwnProperty.call(field.args.where, x.name))
                 );
 
-                const unionStrs: string[] = [
-                    `${alias}: ${!isArray ? "head(" : ""} [${param} IN [(${
-                        chainStr || varName
-                    })${inStr}${relTypeStr}${outStr}(${param})`,
-                    `WHERE ${referenceNodes
-                        .map((x) => {
-                            const labelsStatements = x
-                                .getLabels(context)
-                                .map((label) => `"${label}" IN labels(${param})`);
-                            return `(${labelsStatements.join(" AND ")})`;
-                        })
-                        .join(" OR ")}`,
-                    `| head(`,
-                ];
+                const parentNode = new Cypher.NamedNode(chainStr || varName);
 
-                const headStrs: string[] = referenceNodes.map((refNode) => {
-                    const labelsStatements = refNode
-                        .getLabels(context)
-                        .map((label) => `"${label}" IN labels(${param})`);
-                    const innerHeadStr: string[] = [
-                        `[ ${param} IN [${param}] WHERE (${labelsStatements.join(" AND ")})`,
-                    ];
-
-                    // Extract interface names implemented by reference node
-                    const refNodeInterfaceNames = refNode.interfaces.map(
+                const unionSubqueries: Cypher.Clause[] = [];
+                const unionVariableName = `${param}`;
+                for (const refNode of referenceNodes) {
+                    const refNodeInterfaceNames = node.interfaces.map(
                         (implementedInterface) => implementedInterface.name.value
                     );
-
-                    // Determine if there are any fields to project
                     const hasFields = Object.keys(field.fieldsByTypeName).some((fieldByTypeName) =>
                         [refNode.name, ...refNodeInterfaceNames].includes(fieldByTypeName)
                     );
-
-                    if (hasFields) {
-                        const recurse = createProjectionAndParams({
-                            resolveTree: field,
-                            node: refNode,
-                            context,
-                            varName: param,
-                            isRootConnectionField,
-                        });
-
-                        const nodeWhereAndParams = createNodeWhereAndParams({
-                            whereInput: field.args.where ? field.args.where[refNode.name] : field.args.where,
-                            context,
-                            node: refNode,
-                            varName: param,
-                            chainStr: `${param}_${refNode.name}`,
-                            authValidateStrs: recurse[2]?.authValidateStrs,
-                        });
-                        if (nodeWhereAndParams[0]) {
-                            innerHeadStr.push(`AND ${nodeWhereAndParams[0]}`);
-                            res.params = { ...res.params, ...nodeWhereAndParams[1] };
-                        }
-
-                        innerHeadStr.push(
-                            [
-                                `| ${param} { __resolveType: "${refNode.name}", `,
-                                ...recurse[0].replace("{", "").split(""),
-                            ].join("")
-                        );
-                        res.params = { ...res.params, ...recurse[1] };
-                    } else {
-                        innerHeadStr.push(`| ${param} { __resolveType: "${refNode.name}" } `);
-                    }
-
-                    innerHeadStr.push(`]`);
-
-                    return innerHeadStr.join(" ");
-                });
-                unionStrs.push(headStrs.join(" + "));
-                unionStrs.push(`) ] WHERE ${param} IS NOT NULL]`);
-
-                if (optionsInput) {
-                    const offsetLimit = createOffsetLimitStr({
-                        offset: optionsInput.offset,
-                        limit: optionsInput.limit,
+                    const recurse = createProjectionAndParams({
+                        resolveTree: field,
+                        node: refNode,
+                        context,
+                        varName: `${varName}_${alias}`,
+                        chainStr: unionVariableName,
                     });
-                    if (offsetLimit) {
-                        unionStrs.push(offsetLimit);
+                    res.params = { ...res.params, ...recurse.params };
+
+                    const direction = getRelationshipDirection(relationField, field.args);
+
+                    let nestedProjection = [
+                        ` { __resolveType: "${refNode.name}", `,
+                        recurse.projection.replace("{", ""),
+                    ].join("");
+
+                    if (!hasFields) {
+                        nestedProjection = `{ __resolveType: "${refNode.name}" }`;
                     }
+                    const subquery = createProjectionSubquery({
+                        parentNode,
+                        whereInput: field.args.where ? field.args.where[refNode.name] : field.args.where,
+                        node: refNode,
+                        context,
+                        alias: unionVariableName,
+                        nestedProjection,
+                        nestedSubqueries: [...recurse.subqueriesBeforeSort, ...recurse.subqueries],
+                        relationField,
+                        relationshipDirection: direction,
+                        optionsInput,
+                        authValidateStrs: recurse.meta?.authValidateStrs,
+                        addSkipAndLimit: false,
+                        collect: false,
+                    });
+
+                    const unionWith = new Cypher.With("*");
+                    unionSubqueries.push(Cypher.concat(unionWith, subquery));
                 }
 
-                unionStrs.push(`${!isArray ? ")" : ""}`);
-                res.projection.push(unionStrs.join(" "));
+                const unionClause = new Cypher.Union(...unionSubqueries);
+
+                const collectAndLimitStatements = collectUnionSubqueriesResults({
+                    resultVariable: new Cypher.NamedNode(unionVariableName),
+                    optionsInput,
+                    isArray: Boolean(relationField.typeMeta.array),
+                });
+
+                const unionAndSort = Cypher.concat(new Cypher.Call(unionClause), collectAndLimitStatements);
+                res.subqueries.push(new Cypher.Call(unionAndSort).innerWith(parentNode));
+                res.projection.push(`${alias}: ${unionVariableName}`);
 
                 return res;
             }
 
-            let projectionStr = "";
             const recurse = createProjectionAndParams({
                 resolveTree: field,
                 node: referenceNode || node,
                 context,
                 varName: `${varName}_${alias}`,
                 chainStr: param,
-                inRelationshipProjection: true,
-                isRootConnectionField,
             });
-            [projectionStr] = recurse;
-            res.params = { ...res.params, ...recurse[1] };
+            res.params = { ...res.params, ...recurse.params };
 
-            let whereStr = "";
-            const nodeWhereAndParams = createNodeWhereAndParams({
+            const parentNode = new Cypher.NamedNode(chainStr || varName);
+
+            const direction = getRelationshipDirection(relationField, field.args);
+            const subquery = createProjectionSubquery({
+                parentNode,
                 whereInput,
-                varName: `${varName}_${alias}`,
-                node: referenceNode,
+                node: referenceNode as Node, // TODO: improve typings
                 context,
-                authValidateStrs: recurse[2]?.authValidateStrs,
+                alias: param,
+                nestedProjection: recurse.projection,
+                nestedSubqueries: [...recurse.subqueriesBeforeSort, ...recurse.subqueries],
+                relationField,
+                relationshipDirection: direction,
+                optionsInput,
+                authValidateStrs: recurse.meta?.authValidateStrs,
             });
-            if (nodeWhereAndParams[0]) {
-                whereStr = `WHERE ${nodeWhereAndParams[0]}`;
-                res.params = { ...res.params, ...nodeWhereAndParams[1] };
-            }
-
-            const pathStr = `${nodeMatchStr}${inStr}${relTypeStr}${outStr}${nodeOutStr}`;
-            const innerStr = `${pathStr}  ${whereStr} | ${param} ${projectionStr}`;
-            let nestedQuery: string;
-
-            if (optionsInput) {
-                const offsetLimit = createOffsetLimitStr({ offset: optionsInput.offset, limit: optionsInput.limit });
-
-                if (optionsInput.sort) {
-                    const sorts = optionsInput.sort.reduce(sortReducer, []);
-
-                    nestedQuery = `${alias}: apoc.coll.sortMulti([ ${innerStr} ], [${sorts.join(", ")}])${offsetLimit}`;
-                } else {
-                    nestedQuery = `${alias}: ${!isArray ? "head(" : ""}[ ${innerStr} ]${offsetLimit}${
-                        !isArray ? ")" : ""
-                    }`;
-                }
-            } else {
-                nestedQuery = `${alias}: ${!isArray ? "head(" : ""}[ ${innerStr} ]${!isArray ? ")" : ""}`;
-            }
-
-            res.projection.push(nestedQuery);
-
+            res.subqueries.push(new Cypher.Call(subquery).innerWith(parentNode));
+            res.projection.push(`${alias}: ${param}`);
             return res;
         }
 
@@ -581,43 +268,28 @@ function createProjectionAndParams({
         }
 
         if (connectionField) {
-            if (!inRelationshipProjection) {
-                if (!res.meta.connectionFields) {
-                    res.meta.connectionFields = [];
-                }
+            const connectionClause = new Cypher.Call(
+                createConnectionClause({
+                    resolveTree: field,
+                    field: connectionField,
+                    context,
+                    nodeVariable: varName,
+                    returnVariable: new Cypher.NamedVariable(param),
+                })
+            ).innerWith(new Cypher.NamedNode(varName));
 
-                res.meta.connectionFields.push(field);
-                res.projection.push(literalElements ? `${alias}: ${alias}` : `${alias}`);
+            const connection = connectionClause.build(`${varName}_connection_${field.alias}`); // TODO: remove build from here
+            const stupidParams = connection.params;
 
-                return res;
-            }
+            const connectionSubClause = new Cypher.RawCypher(() => {
+                // TODO: avoid REPLACE_ME in params and return them here
 
-            const matchedConnectionField = node.connectionFields.find(
-                (x) => x.fieldName === field.name
-            ) as ConnectionField;
-            const connection = createConnectionAndParams({
-                resolveTree: field,
-                field: matchedConnectionField,
-                context,
-                nodeVariable: varName,
+                return [connection.cypher, {}];
             });
+            res.subqueries.push(connectionSubClause);
+            res.projection.push(`${field.alias}: ${param}`);
 
-            const connectionParamNames = Object.keys(connection[1]);
-            const runFirstColumnParams = [
-                ...[`${chainStr}: ${chainStr}`],
-                ...connectionParamNames
-                    .filter(Boolean)
-                    .map((connectionParamName) => `${connectionParamName}: $${connectionParamName}`),
-                ...(context.auth ? ["auth: $auth"] : []),
-                ...(context.cypherParams ? ["cypherParams: $cypherParams"] : []),
-            ];
-
-            res.projection.push(
-                `${field.name}: apoc.cypher.runFirstColumn("${connection[0].replace(/("|')/g, "\\$1")} RETURN ${
-                    field.name
-                }", { ${runFirstColumnParams.join(", ")} }, false)`
-            );
-            res.params = { ...res.params, ...connection[1] };
+            res.params = { ...res.params, ...stupidParams };
             return res;
         }
 
@@ -639,7 +311,6 @@ function createProjectionAndParams({
             } else {
                 aliasedProj = "";
             }
-
             res.projection.push(`${aliasedProj}.${dbFieldName}`);
         }
 
@@ -647,6 +318,18 @@ function createProjectionAndParams({
     }
 
     let existingProjection = { ...resolveTree.fieldsByTypeName[node.name] };
+
+    if (context.fulltextIndex) {
+        return createFulltextProjection({
+            resolveTree,
+            node,
+            context,
+            chainStr,
+            varName,
+            literalElements,
+            resolveType,
+        });
+    }
 
     // If we have a query for a globalNode and it includes the "id" field
     // we modify the projection to include the appropriate db fields
@@ -689,29 +372,22 @@ function createProjectionAndParams({
         generateMissingOrAliasedRequiredFields({ selection: mergedSelectedFields, node }),
     ]);
 
-    const { projection, params, meta } = Object.values(mergedFields).reduce(reducer, {
+    const { projection, params, meta, subqueries, subqueriesBeforeSort } = Object.values(mergedFields).reduce(reducer, {
         projection: resolveType ? [`__resolveType: "${node.name}"`] : [],
         params: {},
         meta: {},
+        subqueries: [],
+        subqueriesBeforeSort: [],
     });
 
-    return [`{ ${projection.join(", ")} }`, params, meta];
+    return {
+        projection: `{ ${projection.join(", ")} }`,
+        params,
+        meta,
+        subqueries,
+        subqueriesBeforeSort,
+    };
 }
-
-function sortReducer(s: string[], sort: GraphQLSortArg) {
-    return [
-        ...s,
-        ...Object.entries(sort).map(([fieldName, direction]) => {
-            if (direction === "DESC") {
-                return `'${fieldName}'`;
-            }
-
-            return `'^${fieldName}'`;
-        }),
-    ];
-}
-
-export default createProjectionAndParams;
 
 // Generates any missing fields required for sorting
 const generateMissingOrAliasedSortFields = ({
@@ -737,10 +413,52 @@ const generateMissingOrAliasedRequiredFields = ({
     selection: Record<string, ResolveTree>;
 }): Record<string, ResolveTree> => {
     const requiredFields = removeDuplicates(
-        filterFieldsInSelection({ fields: node.computedFields, selection })
+        filterFieldsInSelection({ fields: node.customResolverFields, selection })
             .map((f) => f.requiredFields)
             .flat()
     );
 
     return generateMissingOrAliasedFields({ fieldNames: requiredFields, selection });
 };
+
+function createFulltextProjection({
+    resolveTree,
+    node,
+    context,
+    chainStr,
+    varName,
+    literalElements,
+    resolveType,
+}: {
+    resolveTree: ResolveTree;
+    node: Node;
+    context: Context;
+    chainStr?: string;
+    varName: string;
+    literalElements?: boolean;
+    resolveType?: boolean;
+}): ProjectionResult {
+    if (!resolveTree.fieldsByTypeName[node.fulltextTypeNames.result][node.singular]) {
+        return {
+            projection: "{ }",
+            params: {},
+            meta: {},
+            subqueries: [],
+            subqueriesBeforeSort: [],
+        };
+    }
+
+    const nodeResolveTree = resolveTree.fieldsByTypeName[node.fulltextTypeNames.result][node.singular];
+
+    const nodeContext = { ...context, fulltextIndex: false };
+
+    return createProjectionAndParams({
+        resolveTree: nodeResolveTree,
+        node,
+        context: nodeContext,
+        chainStr,
+        varName,
+        literalElements,
+        resolveType,
+    });
+}

@@ -116,12 +116,12 @@ export function buildMathStatements(
             mathDescriptor.operationName
         }", "${bitSize}"])`
     );
-    const cypherType =
-        mathDescriptor.graphQLType === "Int" || mathDescriptor.graphQLType === "BigInt" ? "INTEGER" : "FLOAT";
-    // Avoid type coercion
-    statements.push(
-        `CALL apoc.util.validate(apoc.meta.type(${scope}.${mathDescriptor.dbName} ${mathDescriptor.operationSymbol} $${param}) <> "${cypherType}", 'Type Mismatch: Value returned from operator %s does not match: %s', ["${mathDescriptor.operationName}", "${mathDescriptor.graphQLType}"])`
-    );
+    // Avoid type coercion where dividing an integer would result in a float value
+    if (mathDescriptor.graphQLType === "Int" || mathDescriptor.graphQLType === "BigInt") {
+        statements.push(
+            `CALL apoc.util.validate((${scope}.${mathDescriptor.dbName} ${mathDescriptor.operationSymbol} $${param}) % 1 <> 0, 'Type Mismatch: Value returned from operator %s does not match: %s', ["${mathDescriptor.operationName}", "${mathDescriptor.graphQLType}"])`
+        );
+    }
     statements.push(
         `SET ${scope}.${mathDescriptor.dbName} = ${scope}.${mathDescriptor.dbName} ${mathDescriptor.operationSymbol} $${param}`
     );

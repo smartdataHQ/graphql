@@ -20,7 +20,7 @@
 import type { ResolveTree } from "graphql-parse-resolve-info";
 import Relationship from "../../../classes/Relationship";
 import type { TemporalField, PointField, PrimitiveField } from "../../../types";
-import createRelationshipPropertyElement from "./create-relationship-property-element";
+import { createRelationshipPropertyElement } from "./create-relationship-property-element";
 
 describe("createRelationshipPropertyElement", () => {
     let relationship: Relationship;
@@ -179,11 +179,10 @@ describe("createRelationshipPropertyElement", () => {
         const element = createRelationshipPropertyElement({ resolveTree, relationship, relationshipVariable: "this" });
 
         expect(element).toMatchInlineSnapshot(`
-            "point: apoc.cypher.runFirstColumn('RETURN
-            CASE
-            	WHEN this.point IS NOT NULL THEN { point: this.point, crs: this.point.crs }
-            	ELSE NULL
-            END AS result',{ this: this },false)"
+            "point: (CASE
+                WHEN this.point IS NOT NULL THEN { point: this.point, crs: this.point.crs }
+                ELSE NULL
+            END)"
         `);
     });
 });

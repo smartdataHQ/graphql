@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-import type { GraphQLResolveInfo } from "graphql";
+import type { GraphQLResolveInfo, SelectionSetNode } from "graphql";
 import type { InputTypeComposer, SchemaComposer } from "graphql-compose";
 import { upperFirst } from "graphql-compose";
 import type { PageInfo } from "graphql-relay";
@@ -28,6 +28,7 @@ import type { Context } from "../../../types";
 import getNeo4jResolveTree from "../../../utils/get-neo4j-resolve-tree";
 import { isNeoInt } from "../../../utils/utils";
 import { createConnectionWithEdgeProperties } from "../../pagination";
+import { fulltextArgDeprecationMessage } from "../../../schema/augment/fulltext";
 
 export function rootConnectionResolver({ node, composer }: { node: Node; composer: SchemaComposer }) {
     async function resolve(_root: any, args: any, _context: unknown, info: GraphQLResolveInfo) {
@@ -64,7 +65,7 @@ export function rootConnectionResolver({ node, composer }: { node: Node; compose
             totalCount = isNeoInt(record.totalCount) ? record.totalCount.toNumber() : record.totalCount;
 
             const connection = createConnectionWithEdgeProperties({
-                selectionSet: resolveTree,
+                selectionSet: resolveTree as unknown as SelectionSetNode,
                 source: { edges: record.edges },
                 args: { first: args.first, after: args.after },
                 totalCount,
@@ -112,7 +113,21 @@ export function rootConnectionResolver({ node, composer }: { node: Node; compose
             after: "String",
             where: `${node.name}Where`,
             ...(sortArg ? { sort: sortArg.List } : {}),
-            ...(node.fulltextDirective ? { fulltext: `${node.name}Fulltext` } : {}),
+            ...(node.fulltextDirective
+                ? {
+                      fulltext: {
+                          type: `${node.name}Fulltext`,
+                          directives: [
+                              {
+                                  name: "deprecated",
+                                  args: {
+                                      reason: fulltextArgDeprecationMessage,
+                                  },
+                              },
+                          ],
+                      },
+                  }
+                : {}),
         },
     };
 }

@@ -25,6 +25,7 @@ import { gql } from "apollo-server";
 import { generate } from "randomstring";
 import Neo4j from "./neo4j";
 import { Neo4jGraphQL } from "../../src/classes";
+import { getQuerySource } from "../utils/get-query-source";
 
 const testLabel = generate({ charset: "alphabetic" });
 
@@ -132,7 +133,7 @@ describe("fragments", () => {
         `;
         const graphqlResult = await graphql({
             schema,
-            source: query.loc!.source,
+            source: getQuerySource(query),
             contextValue: neo4j.getContextValues(),
             variableValues: { actorName },
         });
@@ -163,7 +164,7 @@ describe("fragments", () => {
 
         const graphqlResult = await graphql({
             schema,
-            source: query.loc!.source,
+            source: getQuerySource(query),
             contextValue: neo4j.getContextValues(),
             variableValues: { actorName },
         });
@@ -175,9 +176,8 @@ describe("fragments", () => {
 
         expect(graphqlActors).toHaveLength(1);
         expect(graphqlActors[0].name).toBe(actorName);
-        expect(graphqlActors[0].actedIn).toHaveLength(2);
         expect(graphqlActors[0].actedIn).toEqual(
-            expect.arrayContaining([{ title: movieTitle }, { title: seriesTitle }])
+            expect.toIncludeSameMembers([{ title: movieTitle }, { title: seriesTitle }])
         );
     });
 
@@ -206,7 +206,7 @@ describe("fragments", () => {
 
         const graphqlResult = await graphql({
             schema,
-            source: query.loc!.source,
+            source: getQuerySource(query),
             contextValue: neo4j.getContextValues(),
             variableValues: { actorName },
         });
@@ -219,9 +219,8 @@ describe("fragments", () => {
 
         expect(graphqlActors).toHaveLength(1);
         expect(graphqlActors[0].name).toBe(actorName);
-        expect(graphqlActors[0].actedIn).toHaveLength(2);
         expect(graphqlActors[0].actedIn).toEqual(
-            expect.arrayContaining([
+            expect.toIncludeSameMembers([
                 { title: movieTitle, runtime: movieRuntime },
                 { title: seriesTitle, runtime: seriesRuntime },
             ])
