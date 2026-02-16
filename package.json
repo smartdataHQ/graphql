@@ -14,17 +14,17 @@
         "packages/plugins/*"
     ],
     "scripts": {
-        "build": "tsc --build tsconfig.production.json && node packages/plugins/index.js",
+        "build": "tsc --build tsconfig.production.json",
         "lint": "eslint --cache .",
         "test": "jest",
-        "test:pr": "run-s lint test && node packages/plugins/index.js",
+        "test:pr": "run-s lint test",
         "neo-push": "concurrently \"yarn workspace neo-push-server start\" \"yarn workspace neo-push-client start\"",
         "neo-push:seed": "yarn workspace neo-push-server run seed",
         "test-docker": "docker-compose up --build --abort-on-container-exit",
-        "prepare": "husky install && node packages/plugins/index.js",
-        "changeset-version": "changeset version && yarn && node packages/plugins/index.js",
-        "changeset-version-master": "changeset version --since master && yarn && node packages/plugins/index.js",
-        "release": "yarn build && changeset publish && node packages/plugins/index.js"
+        "prepare": "husky install",
+        "changeset-version": "changeset version && yarn",
+        "changeset-version-master": "changeset version --since master && yarn",
+        "release": "yarn build && changeset publish"
     },
     "devDependencies": {
         "@tsconfig/node16": "1.0.3",
